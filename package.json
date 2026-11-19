@@ -1,0 +1,12 @@
+{
+  "name": "stellar-odyssey",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "NX-07 HELIOS — an interactive cinematic solar-system flight experience and 3D orbital shipyard.",
+  "homepage": "https://ycmaiball.github.io/stellar-odyssey/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ycmaiball/stellar-odyssey.git"
+  }
+}

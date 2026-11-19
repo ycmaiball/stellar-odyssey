@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#03070c" />
+  <meta name="description" content="STELLAR ODYSSEY — 驾驶 NX-07 曙光号穿越太阳系，探索八大行星，拆解一艘电影级光速星舰。" />
+  <title>STELLAR ODYSSEY · NX-07 HELIOS</title>
+  <link
+    rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2303070c'/%3E%3Ccircle cx='32' cy='32' r='15' fill='none' stroke='%238be9ff' stroke-width='2'/%3E%3Ccircle cx='32' cy='32' r='4' fill='%23ffbe78'/%3E%3Cpath d='M6 32h8M50 32h8' stroke='%238be9ff' stroke-width='1.5'/%3E%3C/svg%3E"
+  />
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <div id="app" class="app is-booting">
+    <div id="scene-root" class="scene-root" aria-label="可交互的 3D 太阳系"></div>
+
+    <div class="fx-layer" aria-hidden="true">
+      <div class="fx-vignette"></div>
+      <div class="fx-grain"></div>
+      <div class="fx-scan"></div>
+      <div class="fx-letterbox fx-letterbox--top"></div>
+      <div class="fx-letterbox fx-letterbox--bottom"></div>
+      <div id="warp-flash" class="warp-flash"></div>
+    </div>
+
+    <div id="planet-marker-layer" class="marker-layer planet-marker-layer" aria-label="行星导航标记"></div>
+    <div id="part-marker-layer" class="marker-layer part-marker-layer" aria-label="星舰模块标记"></div>
+
+    <!-- ── boot ─────────────────────────────────────────────── -->
+    <div id="boot-screen" class="boot-screen">
+      <div class="boot-emblem" aria-hidden="true">
+        <span class="boot-emblem__ring"></span>
+        <span class="boot-emblem__ring boot-emblem__ring--inner"></span>
+        <span class="boot-emblem__core"></span>
+      </div>
+      <div class="boot-brand">STELLAR ODYSSEY</div>
+      <div class="boot-sub">NX-07 HELIOS · DEEP SPACE PROGRAM</div>
+      <div class="boot-bar"><span id="boot-bar-fill"></span></div>
+      <div class="boot-meta">
+        <span id="boot-status">正在建立深空链路…</span>
+        <span id="boot-percent">00%</span>
+      </div>
+      <div class="boot-coords">
+        <span>RA 17h 45m 40s</span>
+        <span>DEC −29° 00′ 28″</span>
+        <span>SOL SYSTEM / 2149</span>
+      </div>
+    </div>
+
+    <!-- ── start ────────────────────────────────────────────── -->
+    <section id="start-screen" class="start-screen is-hidden" aria-label="任务开始">
+      <div class="start-frame" aria-hidden="true"></div>
+      <header class="start-topbar">
+        <div class="wordmark">
+          <span class="wordmark__glyph">◈</span>
+          <span class="wordmark__text">STELLAR ODYSSEY</span>
+          <span class="wordmark__tag">DEEP SPACE PROGRAM</span>
+        </div>
+        <div class="start-topbar__right">
+          <div class="start-status">
+            <span class="status-dot"></span>
+            <span>系统就绪 / ALL SYSTEMS NOMINAL</span>
+          </div>
+          <a class="mode-switch" href="./shipyard/" aria-label="切换到光速飞船装配台">
+            <span class="mode-switch__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2.8 20.2 7.4v9.2L12 21.2 3.8 16.6V7.4Z"/>
+                <path d="m7 9.4 5-3.1 5 3.1v5.2l-5 3.1-5-3.1Z"/>
+                <path d="M12 6.3v6.3M7 9.4l5 3.2 5-3.2"/>
+              </svg>
+            </span>
+            <span class="mode-switch__copy">
+              <span class="mode-switch__kicker">MODE / SHIPYARD</span>
+              <span class="mode-switch__label">装配模式<span class="mode-switch__arrow">↗</span></span>
+            </span>
+          </a>
+        </div>
+      </header>
+
+      <div class="start-hero">
+        <div class="start-kicker">
+          <span>黎明航线</span>
+          <i></i>
+          <span>MISSION 07</span>
+        </div>
+        <h1 class="start-title">
+          <span class="start-title__cn">曙光号</span>
+          <span class="start-title__en">HELIOS</span>
+        </h1>
+        <p class="start-copy">
+          一艘以聚变环驱动的深空星舰。太阳系在它面前展开——<br />
+          穿过行星轨道，抵达光无法照亮的边界。
+        </p>
+
+        <div class="start-stats">
+          <div class="start-stat">
+            <span class="start-stat__value">08</span>
+            <span class="start-stat__label">行星 / PLANETS</span>
+          </div>
+          <div class="start-stat">
+            <span class="start-stat__value">01</span>
+            <span class="start-stat__label">星舰 / STARSHIP</span>
+          </div>
+          <div class="start-stat">
+            <span class="start-stat__value">∞</span>
+            <span class="start-stat__label">航程 / RANGE</span>
+          </div>
+        </div>
+
+        <div class="start-actions">
+          <button id="btn-start" type="button" class="cta-button" disabled>
+            <span class="cta-button__index">01</span>
+            <span class="cta-button__label">启动跃迁引擎</span>
+            <span class="cta-button__en">INITIATE LAUNCH</span>
+            <span class="cta-button__arrow">→</span>
+          </button>
+          <div id="start-ready-note" class="start-ready-note">
+            <span class="status-dot"></span>
+            <span>正在同步行星影像…</span>
+          </div>
+        </div>
+
+        <div class="start-controls">
+          <div><kbd>拖拽</kbd><span>转向</span></div>
+          <div><kbd>W / S</kbd><span>推力</span></div>
+          <div><kbd>SHIFT</kbd><span>跃迁</span></div>
+          <div><kbd>X</kbd><span>结构分解</span></div>
+          <div><kbd>F</kbd><span>自动导航</span></div>
+        </div>
+      </div>
+
+      <footer class="start-footer">
+        <div class="start-footer__left">
+          <span>行星影像 © Solar System Scope · CC BY 4.0</span>
+          <span>THREE.JS / REALTIME CINEMA</span>
+        </div>
+        <div class="start-footer__right">
+          <span>建议佩戴耳机</span>
+          <span class="start-footer__coords">36.7783° N / 119.4179° W</span>
+        </div>
+      </footer>
+
+      <div class="start-side-label start-side-label--left">HELIOS / NX-07</div>
+      <div class="start-side-label start-side-label--right">SOL SYSTEM / 2149</div>
+    </section>
+
+    <!-- ── HUD ──────────────────────────────────────────────── -->
+    <div id="hud" class="hud is-hidden" aria-label="飞行抬头显示">
+      <div class="hud-top">
+        <div class="hud-brand">
+          <span class="hud-brand__mark">◈</span>
+          <div>
+            <span class="hud-brand__name">STELLAR ODYSSEY</span>
+            <span class="hud-brand__ship">NX-07 HELIOS</span>
+          </div>
+        </div>
+
+        <div class="hud-compass" aria-hidden="true">
+          <div class="hud-compass__hairline"></div>
+          <span id="hud-heading" class="hud-compass__value">000</span>
+          <span class="hud-compass__label">航向 / HEADING</span>
+          <span id="hud-mode" class="hud-compass__mode">CRUISE</span>
+        </div>
+
+        <div class="hud-top-actions">
+          <button id="btn-sound" type="button" class="hud-icon-button" aria-label="静音">
+            <span class="hud-icon-button__glyph" id="sound-glyph">◖</span>
+            <span class="hud-icon-button__label">AUDIO</span>
+          </button>
+          <button id="btn-inspect" type="button" class="hud-icon-button hud-icon-button--accent" aria-label="结构分解视图">
+            <span class="hud-icon-button__glyph">⌗</span>
+            <span class="hud-icon-button__label">分解 <kbd>X</kbd></span>
+          </button>
+          <a class="mode-switch mode-switch--hud" href="./shipyard/" aria-label="切换到光速飞船装配台">
+            <span class="mode-switch__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2.8 20.2 7.4v9.2L12 21.2 3.8 16.6V7.4Z"/>
+                <path d="M12 7 16.2 9.4v5.2L12 17l-4.2-2.4V9.4Z"/>
+              </svg>
+            </span>
+            <span class="mode-switch__copy">
+              <span class="mode-switch__kicker">SHIPYARD</span>
+              <span class="mode-switch__label">装配台</span>
+            </span>
+          </a>
+        </div>
+      </div>
+
+      <div id="warp-cockpit" class="warp-cockpit" aria-hidden="true">
+        <div class="warp-cockpit__frame"></div>
+        <div class="warp-cockpit__canopy" aria-hidden="true"></div>
+        <div class="warp-cockpit__tunnel" aria-hidden="true"></div>
+        <div class="warp-cockpit__streaks" aria-hidden="true"></div>
+        <div class="warp-cockpit__sweep" aria-hidden="true"></div>
+        <div class="warp-cockpit__readout">
+          <span class="warp-cockpit__kicker">Quantum Cruise / 曲速巡航</span>
+          <span id="warp-cockpit-speed" class="warp-cockpit__speed">0.000 c</span>
+          <span class="warp-cockpit__sub">Interstellar Transit / 星际航路</span>
+        </div>
+        <span class="warp-cockpit__hint">拖拽修正航向 · 松开 SHIFT 退出曲速</span>
+      </div>
+
+      <div class="reticle" aria-hidden="true">
+        <span class="reticle__ring reticle__ring--outer"></span>
+        <span class="reticle__ring reticle__ring--inner"></span>
+        <span class="reticle__cross reticle__cross--h"></span>
+        <span class="reticle__cross reticle__cross--v"></span>
+        <span class="reticle__dot"></span>
+        <span id="reticle-label" class="reticle__label">航向锁定</span>
+      </div>
+
+      <div id="enemy-marker-layer" class="enemy-marker-layer" aria-hidden="true"></div>
+
+      <aside class="panel nav-panel" aria-label="导航目标">
+        <div class="panel-kicker">
+          <span>导航目标</span>
+          <span class="panel-kicker__en">NAV / 01</span>
+        </div>
+        <div class="target-heading">
+          <div class="target-title">
+            <span id="target-cn" class="target-title__cn">地球</span>
+            <span id="target-en" class="target-title__en">EARTH</span>
+          </div>
+          <span id="target-index" class="target-index">03 / 08</span>
+        </div>
+        <div class="target-distance">
+          <span id="target-distance">5,088 km</span>
+          <span id="target-bearing" class="target-bearing">方位 000°</span>
+        </div>
+        <p id="target-blurb" class="target-blurb">
+          重力井中唯一的蓝色灯塔。云层之下，是出发的地方。
+        </p>
+        <div class="target-controls">
+          <button id="btn-target-prev" type="button" class="square-button" aria-label="上一个目标">◀</button>
+          <button id="btn-autopilot" type="button" class="auto-button">
+            <span class="auto-button__dot"></span>
+            <span id="autopilot-label">自动导航</span>
+            <kbd>F</kbd>
+          </button>
+          <button id="btn-target-next" type="button" class="square-button" aria-label="下一个目标">▶</button>
+        </div>
+        <div class="mission-progress">
+          <div class="mission-progress__head">
+            <span>行星勘测</span>
+            <span id="discover-count">0 / 8</span>
+          </div>
+          <div class="mission-progress__track"><i id="discover-fill"></i></div>
+          <div id="discovered-list" class="discovered-list"></div>
+        </div>
+      </aside>
+
+      <aside class="panel telemetry-panel" aria-label="星舰遥测">
+        <div class="panel-kicker">
+          <span>星舰状态</span>
+          <span class="panel-kicker__en">TELEMETRY</span>
+        </div>
+        <div class="speed-readout">
+          <span id="hud-speed-c" class="speed-readout__value">0.002c</span>
+          <span class="speed-readout__unit">VELOCITY</span>
+        </div>
+        <div class="telemetry-row">
+          <span>亚光速</span>
+          <span id="hud-speed">0 km/s</span>
+        </div>
+
+        <div class="meter">
+          <div class="meter__head">
+            <span>推力 / THRUST</span>
+            <span id="throttle-value">32%</span>
+          </div>
+          <div class="meter__track"><i id="throttle-fill"></i></div>
+        </div>
+
+        <div class="meter meter--warp">
+          <div class="meter__head">
+            <span>跃迁蓄能 / WARP</span>
+            <span id="warp-value">100%</span>
+          </div>
+          <div class="meter__track"><i id="warp-fill"></i></div>
+        </div>
+
+        <div class="telemetry-row telemetry-row--dim">
+          <span>结构完整度</span>
+          <span>100%</span>
+        </div>
+        <div class="telemetry-row telemetry-row--dim">
+          <span>聚变环温度</span>
+          <span id="reactor-temp">7,420 K</span>
+        </div>
+
+        <div class="telemetry-footer">
+          <span id="hud-nearest">最近天体 · 地球</span>
+          <span>AI / PILOT</span>
+        </div>
+      </aside>
+
+      <aside id="combat-panel" class="panel combat-panel is-hidden" aria-label="战斗状态">
+        <div class="panel-kicker">
+          <span>战术链路</span>
+          <span class="panel-kicker__en">COMBAT / LIVE</span>
+        </div>
+        <div class="combat-head">
+          <span id="combat-wave">WAVE 01</span>
+          <span id="combat-kills">击毁 00</span>
+        </div>
+        <div class="combat-bar">
+          <div class="combat-bar__head">
+            <span>护盾 / SHIELD</span>
+            <span id="combat-shield-value">100</span>
+          </div>
+          <div class="combat-bar__track"><i id="combat-shield-fill"></i></div>
+        </div>
+        <div class="combat-bar combat-bar--hull">
+          <div class="combat-bar__head">
+            <span>舰体 / HULL</span>
+            <span id="combat-hull-value">100</span>
+          </div>
+          <div class="combat-bar__track"><i id="combat-hull-fill"></i></div>
+        </div>
+        <div class="combat-bar combat-bar--heat">
+          <div class="combat-bar__head">
+            <span>武器温度 / HEAT</span>
+            <span id="combat-weapon-state">就绪</span>
+          </div>
+          <div class="combat-bar__track"><i id="combat-heat-fill"></i></div>
+        </div>
+        <div class="combat-target-row">
+          <span id="combat-target">扫描敌方信号...</span>
+          <span id="combat-target-distance"></span>
+        </div>
+        <div class="combat-contact">
+          <span id="combat-enemy-count">0 个敌对信号</span>
+          <span class="combat-contact__hint"><kbd>SPACE</kbd> 开火</span>
+        </div>
+      </aside>
+
+      <div class="flight-hints" aria-label="操作提示">
+        <span><kbd>W</kbd><kbd>S</kbd> 推力</span>
+        <span><kbd>拖拽</kbd> 转向</span>
+        <span><kbd>SHIFT</kbd> 跃迁</span>
+        <span><kbd>TAB</kbd> 目标</span>
+        <span><kbd>SPACE</kbd> 开火</span>
+        <span><kbd>X</kbd> 分解</span>
+      </div>
+
+      <aside class="radar-panel" aria-label="局部星图">
+        <div class="panel-kicker panel-kicker--tight">
+          <span>局部星图</span>
+          <span class="panel-kicker__en">LOCAL</span>
+        </div>
+        <div class="radar-wrap">
+          <canvas id="radar-canvas" width="220" height="220"></canvas>
+          <span class="radar-ring radar-ring--outer"></span>
+          <span class="radar-ring radar-ring--inner"></span>
+          <span class="radar-sweep"></span>
+          <span class="radar-player"></span>
+        </div>
+        <div class="radar-legend">
+          <span><i class="legend-dot legend-dot--target"></i>目标</span>
+          <span><i class="legend-dot legend-dot--planet"></i>行星</span>
+          <span><i class="legend-dot legend-dot--sun"></i>太阳</span>
+          <span><i class="legend-dot legend-dot--enemy"></i>敌机</span>
+        </div>
+      </aside>
+
+      <div id="hud-alert" class="hud-alert" role="status"></div>
+      <div id="damage-flash" class="damage-flash" aria-hidden="true"></div>
+      <div class="hud-footer">
+        <span>航行日志 / NAV LOG 07</span>
+        <span id="hud-clock">T+ 00:00:00</span>
+        <span>太阳系 · 猎户臂</span>
+      </div>
+    </div>
+
+    <!-- ── touch controls ───────────────────────────────────── -->
+    <div id="touch-controls" class="touch-controls is-hidden" aria-label="触屏控制">
+      <button id="btn-touch-inspect" type="button" class="touch-button touch-button--small">分解</button>
+      <button id="btn-touch-target" type="button" class="touch-button touch-button--small">目标</button>
+      <button id="btn-touch-auto" type="button" class="touch-button touch-button--small">自动</button>
+      <button id="btn-touch-fire" type="button" class="touch-button touch-button--fire">开火</button>
+      <button id="btn-touch-warp" type="button" class="touch-button touch-button--warp">跃迁</button>
+      <button id="btn-touch-thrust" type="button" class="touch-button touch-button--thrust">推进</button>
+    </div>
+
+    <!-- ── inspection ───────────────────────────────────────── -->
+    <section id="inspect-screen" class="inspect-screen is-hidden" aria-label="星舰结构分解">
+      <header class="inspect-header">
+        <div class="inspect-header__title">
+          <span class="inspect-header__index">STRUCTURE / 01</span>
+          <span>曙光号 · 结构分解视图</span>
+          <span class="inspect-header__en">HELIOS · MODULAR OVERVIEW</span>
+        </div>
+        <div class="inspect-header__status">
+          <span class="status-dot"></span>
+          <span>8 个独立模块 · 实时分离</span>
+        </div>
+        <button id="btn-inspect-exit" type="button" class="inspect-close" aria-label="返回驾驶">
+          <span>返回驾驶</span>
+          <kbd>ESC</kbd>
+          <span class="inspect-close__arrow">↗</span>
+        </button>
+      </header>
+
+      <aside class="inspect-left">
+        <div class="panel-kicker">
+          <span>模块索引</span>
+          <span class="panel-kicker__en">MODULES</span>
+        </div>
+        <div id="part-list" class="part-list" role="list"></div>
+        <div class="inspect-legend">
+          <span><i class="legend-line legend-line--active"></i>已选中</span>
+          <span><i class="legend-line legend-line--detached"></i>已分离</span>
+          <span class="inspect-legend__hint">点击模块查看技术档案</span>
+        </div>
+      </aside>
+
+      <aside class="inspect-right">
+        <div class="part-detail-head">
+          <span id="part-index" class="part-detail-index">01</span>
+          <div class="part-detail-title">
+            <span id="part-name-cn" class="part-detail-title__cn">指令舱</span>
+            <span id="part-name-en" class="part-detail-title__en">COMMAND HULL</span>
+          </div>
+          <span id="part-code" class="part-detail-code">NX-HULL</span>
+        </div>
+        <div id="part-subsystem" class="part-subsystem">核心结构 / PRIMARY STRUCTURE</div>
+        <p id="part-desc" class="part-desc">
+          整舰的承力核心。前段集成驾驶舱、导航阵列与跃迁控制总线。
+        </p>
+        <div id="part-specs" class="part-specs"></div>
+        <div class="inspect-actions">
+          <button id="btn-detach" type="button" class="panel-button panel-button--primary">
+            <span>分离模块</span><span class="panel-button__en">DETACH</span>
+          </button>
+          <button id="btn-explode" type="button" class="panel-button">
+            <span id="explode-label">全舰分解</span><span class="panel-button__en">EXPLODE</span>
+          </button>
+          <button id="btn-reset" type="button" class="panel-button panel-button--ghost">
+            <span>模块归位</span><span class="panel-button__en">RESET</span>
+          </button>
+        </div>
+        <div class="inspect-safety">
+          <span class="inspect-safety__line"></span>
+          <span>结构锁定已解除 · 仅限检修模式</span>
+        </div>
+      </aside>
+
+      <div class="inspect-bottom">
+        <span><kbd>拖拽</kbd> 旋转视角</span>
+        <span><kbd>滚轮</kbd> 缩放</span>
+        <span><kbd>点击</kbd> 选择模块</span>
+        <span class="inspect-bottom__en">CLICK A MODULE TO ACCESS ITS SERVICE RECORD</span>
+      </div>
+    </section>
+
+    <!-- ── toasts / chapter / complete ──────────────────────── -->
+    <div id="toast-stack" class="toast-stack" role="status" aria-live="polite"></div>
+
+    <div id="chapter-card" class="chapter-card" aria-hidden="true">
+      <span id="chapter-kicker" class="chapter-kicker">MISSION 07 / 黎明航线</span>
+      <span id="chapter-title" class="chapter-title">向光而行</span>
+      <span id="chapter-sub" class="chapter-sub">SOL SYSTEM · 2149</span>
+    </div>
+
+    <section id="complete-screen" class="complete-screen is-hidden" aria-label="勘测完成">
+      <div class="complete-frame">
+        <span class="complete-kicker">MISSION COMPLETE / 太阳系全图</span>
+        <h2>你已抵达每一颗行星</h2>
+        <p>八颗行星的引力回声被逐一记录。曙光号仍在航行，星河没有尽头。</p>
+        <div class="complete-stats">
+          <div><span id="complete-planets">8 / 8</span><span>行星勘测</span></div>
+          <div><span id="complete-time">00:00</span><span>任务用时</span></div>
+          <div><span id="complete-distance">0 km</span><span>航行距离</span></div>
+        </div>
+        <button id="btn-continue" type="button" class="cta-button cta-button--compact">
+          <span class="cta-button__label">继续漫游</span>
+          <span class="cta-button__arrow">→</span>
+        </button>
+        <span class="complete-credit">行星影像 © Solar System Scope · CC BY 4.0</span>
+      </div>
+    </section>
+
+    <section id="defeat-screen" class="defeat-screen is-hidden" aria-label="舰体失联">
+      <div class="defeat-frame">
+        <span class="defeat-kicker">SIGNAL LOST / HULL BREACH</span>
+        <h2>曙光号失联</h2>
+        <p>护盾已归零，舰体失去结构完整度。战斗链路将重新部署。</p>
+        <div class="defeat-stats">
+          <div><span id="defeat-kills">00</span><span>击毁敌舰</span></div>
+          <div><span id="defeat-wave">WAVE 01</span><span>抵达波次</span></div>
+          <div><span id="defeat-time">00:00</span><span>战斗用时</span></div>
+        </div>
+        <button id="btn-respawn" type="button" class="cta-button cta-button--compact">
+          <span class="cta-button__label">重新部署</span>
+          <span class="cta-button__arrow">→</span>
+        </button>
+        <span class="defeat-credit">战斗数据将在重新部署后清除</span>
+      </div>
+    </section>
+
+    <div id="webgl-error" class="webgl-error is-hidden" role="alert">
+      <span class="webgl-error__kicker">SYSTEM FAILURE</span>
+      <h2>无法建立 WebGL 渲染链路</h2>
+      <p id="webgl-error-message">请使用支持 WebGL 2 的现代浏览器，并确保硬件加速已开启。</p>
+    </div>
+
+    <div class="corner-marks" aria-hidden="true">
+      <span class="corner-marks__tl"></span>
+      <span class="corner-marks__tr"></span>
+      <span class="corner-marks__bl"></span>
+      <span class="corner-marks__br"></span>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('error', (event) => {
+      console.error('[boot] uncaught:', event.message, event.filename, event.lineno);
+    });
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('[boot] rejection:', event.reason);
+    });
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js",
+        "three/addons/": "./vendor/addons/"
+      }
+    }
+  </script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
