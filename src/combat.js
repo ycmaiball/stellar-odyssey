@@ -562,6 +562,14 @@ export class CombatSystem {
       this._spawnHit(hitPos, 0xff6b50, 1.35);
     }
 
+    this.callbacks.onEnemyHit?.({
+      enemy,
+      name: enemy.name,
+      killed: enemy.hull <= 0,
+      shield: enemy.shield,
+      hull: enemy.hull,
+    });
+
     if (enemy.hull <= 0) {
       this._destroyEnemy(enemy);
     } else {
@@ -681,11 +689,12 @@ export class CombatSystem {
       mesh,
       velocity: direction.clone().multiplyScalar(ENEMY_BOLT_SPEED),
       life: ENEMY_BOLT_LIFE,
+      source: enemy.group.position.clone(),
     });
     this._playTone(280, 110, 0.13, 0.018, 'sawtooth');
   }
 
-  _damagePlayer(amount) {
+  _damagePlayer(amount, source = null) {
     if (this.defeated) return;
     this.player.lastHitAt = this.time;
     let remaining = amount;
@@ -714,6 +723,7 @@ export class CombatSystem {
       amount,
       shieldBroken:
         previousShield > 0 && this.player.shield <= 0,
+      source: source ? source.clone() : null,
     });
     this._playTone(90, 48, 0.22, 0.035, 'sawtooth');
 
@@ -863,7 +873,7 @@ export class CombatSystem {
       const hit = projectile.mesh.position.distanceTo(playerPos) < 27;
       if (hit) {
         this._spawnHit(projectile.mesh.position, 0xff7d68, 0.8);
-        this._damagePlayer(randRange(Math.random, 7, 10));
+        this._damagePlayer(randRange(Math.random, 7, 10), projectile.source || null);
       }
       if (hit || projectile.life <= 0) {
         this.scene.remove(projectile.mesh);

@@ -27,13 +27,13 @@
   <div class="page">
     <header class="topbar">
       <div class="topbar-brand">
-        <a class="brand-mark" href="../index.html" aria-label="返回 NX-07 飞行模式">
+        <span class="brand-mark" role="img" aria-label="光速飞船装配台">
           <svg viewBox="0 0 64 64" aria-hidden="true">
             <path d="M32 4 55 17v30L32 60 9 47V17Z" fill="none" stroke="currentColor" stroke-width="1.5"/>
             <path d="M32 15 45 23v18l-13 8-13-8V23Z" fill="none" stroke="currentColor" stroke-width="1"/>
             <path d="M19 24h26M32 15v34M22 33l10-6 10 6" fill="none" stroke="currentColor" stroke-width="1.8"/>
           </svg>
-        </a>
+        </span>
         <div class="brand-text">
           <span class="brand-kicker">NX-SHIPYARD / LIGHT-SPEED PROGRAM</span>
           <h1>光速飞船装配台</h1>
@@ -49,6 +49,9 @@
 
     <main class="workbench">
       <aside id="library" class="library panel" aria-label="零件库">
+        <button id="btn-library-expand" class="library-expand" type="button" aria-label="展开零件库">
+          <span>零件库</span><b>PARTS</b><i>›</i>
+        </button>
         <div class="panel-head">
           <div>
             <span class="kicker">PARTS BAY / 07 CATEGORIES</span>
@@ -56,6 +59,7 @@
           </div>
           <div class="head-aside">
             <span id="part-count" class="head-meta">0 PARTS</span>
+            <button id="btn-library-collapse" type="button" class="icon-btn library-collapse" aria-label="收起零件库">‹</button>
             <button id="btn-drawer-close" type="button" class="icon-btn mobile-only" aria-label="收起零件库">×</button>
           </div>
         </div>
@@ -205,6 +209,12 @@
           </div>
           <div id="decor-grid" class="decor-grid"></div>
         </div>
+
+        <div id="refit-delta" class="refit-delta" aria-live="polite">
+          <span class="refit-delta__kicker">REFIT COMPLETE / 改装结果</span>
+          <div class="refit-delta__values"></div>
+          <p class="refit-delta__verdict"></p>
+        </div>
       </section>
 
       <aside id="telemetry" class="telemetry panel" aria-label="性能面板">
@@ -225,6 +235,7 @@
           </div>
         </div>
         <p id="archetype" class="archetype">等待零件接入。</p>
+        <p id="refit-advice" class="refit-advice">最值得改：先补齐核心槽位。</p>
 
         <div class="stat-list">
           <div class="stat-item" data-stat="propulsion">
@@ -272,7 +283,7 @@
 
     <footer class="page-footer">
       <span>NX-SHIPYARD · 62 SLOTS · 3 SAMPLE LOADOUTS ON FIRST RUN</span>
-      <a href="../index.html">← 返回 NX-07 飞行模式</a>
+      <span class="page-footer__note">出击仅通过“光速启动”</span>
       <span>LOCAL SAVE / NO SERVER</span>
     </footer>
   </div>

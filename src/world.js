@@ -776,13 +776,13 @@ export function createUniverse(scene, renderer, manager) {
   const warpField = createWarpField();
   worldGroup.add(warpField.lines);
 
-  const sunLight = new THREE.DirectionalLight(0xfff2df, 2.2);
+  const sunLight = new THREE.DirectionalLight(0xfff2df, 1.65);
   sunLight.position.copy(SUN_POSITION).normalize().multiplyScalar(1000);
   sunLight.target.position.set(0, 0, 0);
   scene.add(sunLight);
   scene.add(sunLight.target);
 
-  const rimLight = new THREE.DirectionalLight(0x5b87ff, 1.2);
+  const rimLight = new THREE.DirectionalLight(0x5b87ff, 0.95);
   rimLight.position.set(1400, 700, 2200);
   rimLight.target.position.set(0, 0, 0);
   scene.add(rimLight);

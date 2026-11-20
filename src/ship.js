@@ -3079,7 +3079,6 @@ export function createShip() {
       clearcoat: 0.1,
       bumpMap: hullPanel,
       bumpScale: 0.09,
-      roughnessMap: hullPanel,
     }),
     hullDark: makeMaterial('hull-deep', {
       color: 0x10171c,
@@ -3096,40 +3095,36 @@ export function createShip() {
       envMapIntensity: 0.5,
       bumpMap: hullPanel,
       bumpScale: 0.07,
-      roughnessMap: hullPanel,
     }),
     armorMid: makeMaterial('armor-mid', {
       color: 0x8e8371,
       map: ceramicAlbedo,
       metalness: 0.2,
-      roughness: 0.6,
+      roughness: 0.66,
       envMapIntensity: 0.5,
-      clearcoat: 0.26,
+      clearcoat: 0.1,
       bumpMap: hullPanel,
       bumpScale: 0.075,
-      roughnessMap: hullPanel,
     }),
     armorLight: makeMaterial('armor-light', {
       color: 0xd4cab6,
       map: ceramicAlbedo,
       metalness: 0.18,
-      roughness: 0.55,
+      roughness: 0.62,
       envMapIntensity: 0.55,
-      clearcoat: 0.12,
+      clearcoat: 0.06,
       bumpMap: hullPanel,
       bumpScale: 0.07,
-      roughnessMap: hullPanel,
     }),
     armorWarm: makeMaterial('armor-warm', {
       color: 0xb8946a,
       map: ceramicAlbedo,
       metalness: 0.22,
-      roughness: 0.52,
+      roughness: 0.6,
       envMapIntensity: 0.5,
-      clearcoat: 0.22,
+      clearcoat: 0.08,
       bumpMap: hullPanel,
       bumpScale: 0.06,
-      roughnessMap: hullPanel,
     }),
     copper: makeMaterial('copper-service', {
       color: 0xb57249,
@@ -3146,7 +3141,6 @@ export function createShip() {
       side: THREE.DoubleSide,
       bumpMap: hullPanel,
       bumpScale: 0.06,
-      roughnessMap: hullPanel,
     }),
     wingPanel: makeMaterial('wing-panel', {
       color: 0x7f8988,
@@ -3158,7 +3152,6 @@ export function createShip() {
       side: THREE.DoubleSide,
       bumpMap: hullPanel,
       bumpScale: 0.065,
-      roughnessMap: hullPanel,
     }),
     wingCeramic: makeMaterial('wing-ceramic', {
       color: 0xcfc3aa,
@@ -3170,7 +3163,6 @@ export function createShip() {
       side: THREE.DoubleSide,
       bumpMap: hullPanel,
       bumpScale: 0.06,
-      roughnessMap: hullPanel,
     }),
     rib: makeMaterial('rib-metal', {
       color: 0x101216,
@@ -3197,7 +3189,6 @@ export function createShip() {
       clearcoat: 0.2,
       bumpMap: hullPanel,
       bumpScale: 0.05,
-      roughnessMap: hullPanel,
     }),
     glass: new THREE.MeshPhysicalMaterial({
       color: 0x0a1820,
@@ -3391,6 +3382,7 @@ export function createShip() {
     explode: 0,
     mode: 'menu',
     selected: null,
+    rig: { keyLight, rimLight, bellyFill, crownFill },
   };
 
   const tmpEuler = new THREE.Euler();
@@ -3447,6 +3439,38 @@ export function createShip() {
     pitch = 0,
   } = {}) {
     state.mode = mode;
+
+    /* The presentation rig is tuned for the drydock. In flight it is
+       pulled back hard: the solar key and rim already model the hull,
+       and the close rig only produced a bloom hotspot on the dorsal
+       armour from the chase angle. */
+    const rigScale =
+      mode === 'inspect' ? 1 : mode === 'menu' ? 1 : mode === 'flight' ? 0.14 : 0.55;
+    state.rig.keyLight.intensity = damp(
+      state.rig.keyLight.intensity,
+      1.8 * rigScale,
+      3,
+      dt,
+    );
+    state.rig.rimLight.intensity = damp(
+      state.rig.rimLight.intensity,
+      2.0 * rigScale,
+      3,
+      dt,
+    );
+    state.rig.bellyFill.intensity = damp(
+      state.rig.bellyFill.intensity,
+      400 * rigScale,
+      3,
+      dt,
+    );
+    state.rig.crownFill.intensity = damp(
+      state.rig.crownFill.intensity,
+      280 * rigScale,
+      3,
+      dt,
+    );
+
     state.explode = damp(
       state.explode,
       state.explodeTarget,
@@ -3519,9 +3543,9 @@ export function createShip() {
       fx.innerFlame.scale.z = 0.45 + engineEnergy * 0.92;
       fx.outerFlame.scale.z = length;
       fx.innerFlame.material.uniforms.uOpacity.value =
-        (0.15 + engineEnergy * 0.4) * flicker;
+        (0.1 + engineEnergy * 0.26) * flicker;
       fx.outerFlame.material.uniforms.uOpacity.value =
-        (0.06 + engineEnergy * 0.2) * flicker;
+        (0.045 + engineEnergy * 0.14) * flicker;
       fx.innerFlame.material.uniforms.uColor.value.set(
         warpClamped > 0.35 ? '#d9f1ff' : '#fff1d0',
       );
@@ -3529,8 +3553,8 @@ export function createShip() {
       fx.glow.scale.setScalar(2.6 + engineEnergy * 1.5);
       fx.intakeGlow.material.opacity =
         0.1 + engineEnergy * 0.24 + Math.sin(elapsed * 2.4 + fx.phase) * 0.03;
-      fx.plasmaDisc.material.opacity = 0.12 + engineEnergy * 0.18;
-      fx.engineLight.intensity = 80 + engineEnergy * 260;
+      fx.plasmaDisc.material.opacity = 0.09 + engineEnergy * 0.12;
+      fx.engineLight.intensity = 60 + engineEnergy * 170;
     });
 
     if (shipState.warpEnergy) {

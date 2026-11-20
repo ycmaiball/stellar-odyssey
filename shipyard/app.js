@@ -438,6 +438,7 @@
   let dragTargetHalo = null;
   let lastInstalledSlot = null;
   let flashTimer = 0;
+  let refitTimer = 0;
   let toastTimer = 0;
   let activeModal = null;
   let hangarFocus = null;
@@ -625,7 +626,76 @@
     return '开放式方案：还有空槽，装上能更强。';
   }
 
+  const REFIT_LABELS = {
+    propulsion: '推进',
+    defense: '防御',
+    firepower: '火力',
+    energy: '能耗',
+  };
+
+  function refitVerdict(previous, next) {
+    const speed = next.propulsion - previous.propulsion;
+    const armor = next.defense - previous.defense;
+    const guns = next.firepower - previous.firepower;
+    const draw = next.energy - previous.energy;
+    if (draw > 4) return '能量负担上升，续航会变紧。';
+    if (speed > 3 && armor < -2) return '更快，但更考验走位。';
+    if (armor > 3 && speed < -2) return '更稳，但速度让位。';
+    if (guns > 3) return '火力上去了，注意武器温度。';
+    if (armor > 3) return '防线更扎实，适合硬闯。';
+    if (speed > 3) return '机动性提升，适合快速接敌。';
+    return '配置已更新，平衡维持。';
+  }
+
+  function showRefitDelta(previous, next) {
+    const panel = $('#refit-delta');
+    const values = $('.refit-delta__values');
+    const verdict = $('.refit-delta__verdict');
+    if (!panel || !values || !verdict) return;
+
+    const changes = ['propulsion', 'defense', 'firepower', 'energy']
+      .map((key) => ({ key, delta: next[key] - previous[key] }))
+      .filter((entry) => Math.abs(entry.delta) >= 0.05)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, 2);
+
+    if (!changes.length) return;
+    values.replaceChildren();
+    changes.forEach(({ key, delta }) => {
+      const item = document.createElement('span');
+      const good = key === 'energy' ? delta < 0 : delta > 0;
+      item.className = good ? 'is-up' : 'is-down';
+      item.textContent = `${REFIT_LABELS[key]} ${delta > 0 ? '+' : ''}${round1(delta)}`;
+      values.append(item);
+    });
+    verdict.textContent = refitVerdict(previous, next);
+    panel.classList.add('is-visible');
+    window.clearTimeout(refitTimer);
+    refitTimer = window.setTimeout(() => panel.classList.remove('is-visible'), 3600);
+  }
+
+  function updateRefitAdvice(stats) {
+    const advice = $('#refit-advice');
+    if (!advice) return;
+    if (stats.overload) {
+      advice.textContent = '建议 · 先卸下高能耗武器，解除能量超载。';
+      return;
+    }
+    if (stats.emptyCore > 0) {
+      advice.textContent = `建议 · 补齐 ${stats.emptyCore} 个核心槽位，别让空槽拖低总评。`;
+      return;
+    }
+    const weakest = [
+      { label: '推进', value: stats.propulsion / 120 },
+      { label: '防御', value: stats.defense / 120 },
+      { label: '火力', value: stats.firepower / 120 },
+      { label: '能量余量', value: (100 - stats.energy) / 100 },
+    ].sort((a, b) => a.value - b.value)[0];
+    advice.textContent = `建议 · 当前最短板是${weakest.label}，下一次改装优先补它。`;
+  }
+
   function updateStatsUI(flash = false) {
+    const previous = previousStats;
     statsCache = computeStats(state);
     const stats = statsCache;
     const perf = CONFIG.performance;
@@ -721,6 +791,8 @@
       }
     }
     markHullCard();
+    updateRefitAdvice(stats);
+    if (flash && previous) showRefitDelta(previous, stats);
     previousStats = stats;
   }
 
@@ -2606,6 +2678,28 @@
   /* 14. Boot                                                            */
   /* ------------------------------------------------------------------ */
 
+  function setLibraryRail(collapsed) {
+    const library = $('#library');
+    if (!library) return;
+    const isRail = Boolean(collapsed);
+    library.classList.toggle('is-rail', isRail);
+    $('#btn-library-expand')?.setAttribute('aria-expanded', isRail ? 'false' : 'true');
+    $('#btn-library-collapse')?.setAttribute('aria-expanded', isRail ? 'false' : 'true');
+  }
+
+  function setupLibraryRail() {
+    const library = $('#library');
+    if (!library) return;
+    setLibraryRail(window.matchMedia('(min-width: 901px)').matches);
+    $('#btn-library-expand')?.addEventListener('click', () => setLibraryRail(false));
+    $('#btn-library-collapse')?.addEventListener('click', () => setLibraryRail(true));
+    window.addEventListener('resize', () => {
+      if (window.innerWidth < 901 && library.classList.contains('is-rail')) {
+        setLibraryRail(false);
+      }
+    });
+  }
+
   function createStarfield() {
     const field = $('#starfield');
     if (!field) return;
@@ -2648,6 +2742,7 @@
     renderLibrary();
     renderAll(false);
     setupEvents();
+    setupLibraryRail();
     createStarfield();
     updateHangarCount();
     syncBodyLock();

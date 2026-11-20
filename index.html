@@ -188,6 +188,24 @@
         </div>
       </div>
 
+      <div id="mission-strip" class="mission-strip" aria-live="polite">
+        <span class="mission-strip__kicker">CURRENT VECTOR / 当前航路</span>
+        <div class="mission-strip__main">
+          <strong id="mission-target">地球</strong>
+          <span id="mission-distance">—</span>
+          <span id="mission-bearing">方位 000°</span>
+        </div>
+        <div class="mission-strip__meta">
+          <span id="mission-objective">勘测地球</span>
+          <span id="mission-progress">0 / 8</span>
+        </div>
+      </div>
+
+      <div id="tactical-banner" class="tactical-banner" aria-hidden="true">
+        <span>TACTICAL SCAN</span>
+        <b>战术扫描 · 松开放回</b>
+      </div>
+
       <div id="warp-cockpit" class="warp-cockpit" aria-hidden="true">
         <div class="warp-cockpit__frame"></div>
         <div class="warp-cockpit__canopy" aria-hidden="true"></div>
@@ -209,9 +227,45 @@
         <span class="reticle__cross reticle__cross--v"></span>
         <span class="reticle__dot"></span>
         <span id="reticle-label" class="reticle__label">航向锁定</span>
+        <span id="hit-marker" class="hit-marker" aria-hidden="true">
+          <i></i><i></i><i></i><i></i>
+        </span>
+      </div>
+
+      <div id="kill-confirm" class="kill-confirm" aria-live="polite">
+        <span class="kill-confirm__line"></span>
+        <b>目标摧毁</b>
+        <span id="kill-confirm-name">RAIDER</span>
+        <span class="kill-confirm__line"></span>
       </div>
 
       <div id="enemy-marker-layer" class="enemy-marker-layer" aria-hidden="true"></div>
+
+      <aside id="core-status" class="core-status" aria-label="核心状态">
+        <div class="core-status__head">
+          <span>CORE STATUS</span>
+          <span id="core-mode">CRUISE</span>
+        </div>
+        <div class="core-status__bars">
+          <div class="core-bar core-bar--shield">
+            <div class="core-bar__head"><span>护盾</span><b id="core-shield-value">100</b></div>
+            <div class="core-bar__track"><i id="core-shield-fill"></i></div>
+          </div>
+          <div class="core-bar core-bar--hull">
+            <div class="core-bar__head"><span>舰体</span><b id="core-hull-value">100</b></div>
+            <div class="core-bar__track"><i id="core-hull-fill"></i></div>
+          </div>
+          <div class="core-bar core-bar--heat">
+            <div class="core-bar__head"><span>武器</span><b id="core-weapon-state">就绪</b></div>
+            <div class="core-bar__track"><i id="core-heat-fill"></i></div>
+          </div>
+        </div>
+        <div class="core-status__telemetry">
+          <span><b id="core-speed">0.000c</b><small>速度</small></span>
+          <span><b id="core-warp">100%</b><small>曲率</small></span>
+          <span><b id="core-kills">00</b><small>击毁</small></span>
+        </div>
+      </aside>
 
       <aside class="panel nav-panel" aria-label="导航目标">
         <div class="panel-kicker">
@@ -336,13 +390,13 @@
         </div>
       </aside>
 
-      <div class="flight-hints" aria-label="操作提示">
+      <div id="flight-hints" class="flight-hints" aria-label="操作提示">
         <span><kbd>W</kbd><kbd>S</kbd> 推力</span>
         <span><kbd>拖拽</kbd> 转向</span>
         <span><kbd>SHIFT</kbd> 跃迁</span>
-        <span><kbd>TAB</kbd> 目标</span>
+        <span><kbd>TAB</kbd> 战术扫描</span>
+        <span><kbd>T</kbd> 目标</span>
         <span><kbd>SPACE</kbd> 开火</span>
-        <span><kbd>X</kbd> 分解</span>
       </div>
 
       <aside class="radar-panel" aria-label="局部星图">

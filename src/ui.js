@@ -148,7 +148,37 @@ export class GameUI {
       defeatKills: $('defeat-kills'),
       defeatWave: $('defeat-wave'),
       defeatTime: $('defeat-time'),
+      missionStrip: document.querySelector('.mission-strip'),
+      missionTarget: $('mission-target'),
+      missionDistance: $('mission-distance'),
+      missionBearing: $('mission-bearing'),
+      missionObjective: $('mission-objective'),
+      missionProgress: $('mission-progress'),
+      tacticalBanner: $('tactical-banner'),
+      hitMarker: $('hit-marker'),
+      killConfirm: $('kill-confirm'),
+      killConfirmName: $('kill-confirm-name'),
+      coreStatus: document.querySelector('.core-status'),
+      coreMode: $('core-mode'),
+      coreShieldFill: $('core-shield-fill'),
+      coreShieldValue: $('core-shield-value'),
+      coreHullFill: $('core-hull-fill'),
+      coreHullValue: $('core-hull-value'),
+      coreHeatFill: $('core-heat-fill'),
+      coreWeaponState: $('core-weapon-state'),
+      coreSpeed: $('core-speed'),
+      coreWarp: $('core-warp'),
+      coreKills: $('core-kills'),
+      coreShieldBar: document.querySelector('.core-bar--shield'),
+      coreHullBar: document.querySelector('.core-bar--hull'),
+      coreHeatBar: document.querySelector('.core-bar--heat'),
+      flightHints: $('flight-hints'),
     };
+
+    this.hitTimer = 0;
+    this.killTimer = 0;
+    this.damageTimer = 0;
+    this.tacticalActive = false;
 
     this.bindEvents();
     this.radarCtx = this.el.radar ? this.el.radar.getContext('2d') : null;
@@ -318,6 +348,11 @@ export class GameUI {
       'mode-defeat',
     );
     this.el.app?.classList.add(`mode-${mode}`);
+    if (mode !== 'flight') {
+      this.setTacticalScan(false);
+      this.el.hitMarker?.classList.remove('is-hit', 'is-kill');
+      this.el.killConfirm?.classList.remove('is-visible');
+    }
     this.syncTouchVisibility();
   }
 
@@ -538,6 +573,58 @@ export class GameUI {
     if (data.reticleLabel !== undefined) {
       setText(this.el.reticleLabel, data.reticleLabel);
     }
+    if (data.speedC !== undefined) {
+      setText(this.el.coreSpeed, `${data.speedC.toFixed(3)} c`);
+    }
+    if (data.warpCharge !== undefined) {
+      setText(this.el.coreWarp, `${Math.round(data.warpCharge * 100)}%`);
+    }
+    if (data.modeLabel !== undefined) {
+      setText(this.el.coreMode, data.modeLabel);
+    }
+  }
+
+  updateMission(data) {
+    if (!data) return;
+    setText(this.el.missionTarget, data.target || '—');
+    setText(this.el.missionDistance, data.distance || '—');
+    setText(this.el.missionBearing, data.bearing || '—');
+    setText(this.el.missionObjective, data.objective || '');
+    setText(this.el.missionProgress, data.progress || '');
+  }
+
+  setTacticalScan(active) {
+    const next = Boolean(active);
+    if (this.tacticalActive === next) return;
+    this.tacticalActive = next;
+    this.el.hud?.classList.toggle('is-tactical', next);
+  }
+
+  muteHints() {
+    this.el.flightHints?.classList.add('is-muted');
+  }
+
+  hitMarker(killed = false) {
+    const marker = this.el.hitMarker;
+    if (!marker) return;
+    marker.classList.remove('is-hit', 'is-kill');
+    void marker.offsetWidth;
+    marker.classList.add('is-hit');
+    if (killed) marker.classList.add('is-kill');
+    window.clearTimeout(this.hitTimer);
+    this.hitTimer = window.setTimeout(() => {
+      marker.classList.remove('is-hit', 'is-kill');
+    }, 220);
+  }
+
+  showKillConfirm(name = '敌对目标') {
+    if (!this.el.killConfirm) return;
+    setText(this.el.killConfirmName, name);
+    this.el.killConfirm.classList.add('is-visible');
+    window.clearTimeout(this.killTimer);
+    this.killTimer = window.setTimeout(() => {
+      this.el.killConfirm.classList.remove('is-visible');
+    }, 1500);
   }
 
   setCombatActive(active) {
@@ -592,6 +679,23 @@ export class GameUI {
           : '',
       );
     }
+
+    /* The compact core panel is the permanent combat readout. */
+    if (this.el.coreShieldFill) this.el.coreShieldFill.style.width = `${shieldPct.toFixed(1)}%`;
+    if (this.el.coreHullFill) this.el.coreHullFill.style.width = `${hullPct.toFixed(1)}%`;
+    if (this.el.coreHeatFill) this.el.coreHeatFill.style.width = `${heatPct.toFixed(1)}%`;
+    setText(this.el.coreShieldValue, String(Math.round(data.shield)).padStart(3, '0'));
+    setText(this.el.coreHullValue, String(Math.round(data.hull)).padStart(3, '0'));
+    setText(
+      this.el.coreWeaponState,
+      data.overheated ? '过热' : data.heat > 72 ? '高温' : data.firing ? '射击' : '就绪',
+    );
+    setText(this.el.coreKills, String(data.kills || 0).padStart(2, '0'));
+    this.el.coreStatus?.classList.toggle('is-critical', shieldPct <= 28 || hullPct <= 34);
+    this.el.coreShieldBar?.classList.toggle('is-critical', shieldPct <= 28);
+    this.el.coreHullBar?.classList.toggle('is-critical', hullPct <= 34);
+    this.el.coreHeatBar?.classList.toggle('is-hot', data.heat > 72 && !data.overheated);
+    this.el.coreHeatBar?.classList.toggle('is-overheated', Boolean(data.overheated));
   }
 
   updateEnemyMarkers(items = []) {
@@ -633,6 +737,7 @@ export class GameUI {
       marker.root.style.left = `${item.x}px`;
       marker.root.style.top = `${item.y}px`;
       marker.root.classList.toggle('is-locked', Boolean(item.locked));
+      marker.root.classList.toggle('is-compact', Boolean(item.compact));
       marker.root.classList.toggle('is-offscreen', !item.visible);
       marker.shieldFill.style.width = `${clamp(
         (item.shield / item.shieldMax) * 100,
@@ -658,16 +763,29 @@ export class GameUI {
     }
   }
 
-  flashDamage(strength = 1) {
+  flashDamage(strength = 1, side = null) {
     const element = this.el.damageFlash;
     if (!element) return;
     element.style.setProperty(
       '--damage-alpha',
       String(clamp(0.45 + strength * 0.32, 0.45, 0.95)),
     );
-    element.classList.remove('is-active');
+    element.classList.remove(
+      'is-active',
+      'from-front',
+      'from-back',
+      'from-left',
+      'from-right',
+    );
+    if (side && ['front', 'back', 'left', 'right'].includes(side)) {
+      element.classList.add(`from-${side}`);
+    }
     void element.offsetWidth;
     element.classList.add('is-active');
+    window.clearTimeout(this.damageTimer);
+    this.damageTimer = window.setTimeout(() => {
+      element.classList.remove('is-active');
+    }, 420);
   }
 
   showDefeat({ kills = 0, wave = 1, time = 0 } = {}) {
@@ -836,22 +954,30 @@ export class GameUI {
     });
 
     if (Array.isArray(data.enemies)) {
+      /* Contacts use a local combat scale, not the 27,000-unit planet
+         scale, so a raider at 300 m is actually visible on the dial. */
+      const combatRange = 1200;
+      const localScale = radius / combatRange;
       data.enemies.forEach((enemy) => {
         const [rawX, rawY] = toScreen(enemy.x, enemy.z);
-        const distance = Math.hypot(rawX, rawY);
-        const clamped = Math.min(distance, radius - 3) / Math.max(distance, 0.001);
-        const px = rawX * clamped;
-        const py = rawY * clamped;
+        let px = rawX * localScale;
+        let py = rawY * localScale;
+        const offScale = Math.hypot(px, py) > radius - 4;
+        if (offScale) {
+          const factor = (radius - 4) / Math.max(Math.hypot(px, py), 0.001);
+          px *= factor;
+          py *= factor;
+        }
         context.fillStyle = '#ff705b';
-        context.globalAlpha = 0.9;
+        context.globalAlpha = offScale ? 0.42 : 0.95;
         context.beginPath();
-        context.arc(px, py, 2.2, 0, Math.PI * 2);
+        context.arc(px, py, 2.6, 0, Math.PI * 2);
         context.fill();
         if (enemy.locked) {
           context.strokeStyle = 'rgba(255, 190, 120, 0.85)';
           context.lineWidth = 1;
           context.beginPath();
-          context.arc(px, py, 5.4, 0, Math.PI * 2);
+          context.arc(px, py, 6.4, 0, Math.PI * 2);
           context.stroke();
         }
         context.globalAlpha = 1;

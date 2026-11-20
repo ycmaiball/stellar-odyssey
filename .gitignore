@@ -5,3 +5,9 @@ Thumbs.db
 .env.*
 .cdp-profile/
 .edge-tmp/
+node_modules/
+.pnpm-store/
+.edge-opt/
+qa-*.mjs
+qa-*.png
+progress.md

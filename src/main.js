@@ -54,6 +54,8 @@ const game = {
   touchFire: false,
   combatWave: 1,
   combatKills: 0,
+  tacticalScan: false,
+  cameraShake: 0,
 
   throttle: 0.36,
   speed: 0,
@@ -295,6 +297,12 @@ function init() {
       get renderer() {
         return renderer;
       },
+      get composer() {
+        return composer;
+      },
+      get bloomPass() {
+        return bloomPass;
+      },
     };
 
     requestAnimationFrame(animate);
@@ -439,7 +447,7 @@ function setupPostprocessing() {
   outlinePass.hiddenEdgeColor.set('#173845');
   composer.addPass(outlinePass);
 
-  bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.38, 0.42, 0.85);
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.30, 0.40, 1.55);
   composer.addPass(bloomPass);
 
   composer.addPass(new OutputPass());
@@ -498,15 +506,24 @@ function setupCombat() {
         game.combatKills = kills;
         if (remaining === 0) ui.showAlert('敌方信号消失 · 重新扫描空域', 1800);
       },
-      onPlayerHit: ({ amount, shieldBroken }) => {
-        ui.flashDamage(clamp(amount / 9, 0.4, 1.4));
+      onEnemyHit: ({ name, killed }) => {
+        ui.hitMarker(Boolean(killed));
+        if (killed) ui.showKillConfirm(name || '敌对目标');
+      },
+      onPlayerHit: ({ amount, shieldBroken, source }) => {
+        const side = damageDirectionFromSource(source);
+        ui.flashDamage(clamp(amount / 9, 0.4, 1.4), side);
+        game.cameraShake = Math.max(game.cameraShake, clamp(amount * 0.55, 2.2, 8));
         if (shieldBroken) {
           ui.showAlert('护盾崩溃 · 装甲暴露', 2400);
           audio.hullAlert();
         }
       },
       onPlayerHullHit: ({ amount }) => {
-        ui.flashDamage(clamp(0.7 + amount / 8, 0.8, 1.6));
+        game.cameraShake = Math.max(
+          game.cameraShake,
+          clamp(4 + amount * 0.8, 5, 11),
+        );
       },
       onPlayerDeath: (payload) => {
         handlePlayerDefeat(payload);
@@ -533,9 +550,24 @@ function syncCombatFiring() {
   );
 }
 
+function damageDirectionFromSource(source) {
+  if (!source || !ship) return 'front';
+  const local = new THREE.Vector3()
+    .copy(source)
+    .sub(ship.root.position)
+    .applyQuaternion(ship.root.quaternion.clone().invert());
+  const angle = Math.atan2(local.x, -local.z) * DEG;
+  if (angle >= -45 && angle < 45) return 'front';
+  if (angle >= 45 && angle < 135) return 'right';
+  if (angle >= -135 && angle < -45) return 'left';
+  return 'back';
+}
+
 function handlePlayerDefeat({ kills, wave, time }) {
   if (game.combatDefeated) return;
   resetWarpCockpit();
+  game.tacticalScan = false;
+  ui.setTacticalScan(false);
   game.combatDefeated = true;
   game.combatWave = wave || game.combatWave;
   game.combatKills = kills || game.combatKills;
@@ -680,6 +712,8 @@ function startMission() {
   game.combatKills = 0;
   game.keyFiring = false;
   game.touchFire = false;
+  game.tacticalScan = false;
+  game.cameraShake = 0;
   game.throttle = 0.34;
   game.speed = 0;
   game.warp = 0;
@@ -705,6 +739,7 @@ function startMission() {
   ui.setAutopilot(false);
   ui.setExploded(false);
   ui.setMuted(game.muted);
+  ui.setTacticalScan(false);
   ui.updatePartList(ship.parts);
   ui.setDiscovered([...game.discovered]);
   ui.hideDefeat();
@@ -738,11 +773,17 @@ function startMission() {
   window.setTimeout(() => {
     if (game.started && game.mode === 'flight') ui.flashWarp();
   }, 680);
+
+  window.setTimeout(() => {
+    if (game.started && game.mode === 'flight') ui.muteHints();
+  }, 11000);
 }
 
 function enterInspection() {
   if (game.mode !== 'flight' || !ship || game.combatDefeated) return;
   resetWarpCockpit();
+  game.tacticalScan = false;
+  ui.setTacticalScan(false);
   game.mode = 'inspect';
   game.cameraMode = 'inspect';
   game.autopilot = false;
@@ -1439,6 +1480,16 @@ function updateChaseCamera(dt) {
   } else {
     setFov(baseFov, dt);
   }
+
+  if (game.cameraShake > 0.01) {
+    const amount = game.cameraShake;
+    camera.position.x += (Math.random() - 0.5) * amount * 0.055;
+    camera.position.y += (Math.random() - 0.5) * amount * 0.045;
+    camera.position.z += (Math.random() - 0.5) * amount * 0.035;
+    camera.rotateZ((Math.random() - 0.5) * amount * 0.0011);
+    game.cameraShake = damp(game.cameraShake, 0, 8.5, dt);
+    if (game.cameraShake < 0.02) game.cameraShake = 0;
+  }
 }
 
 function updateInspectCamera(dt) {
@@ -1614,6 +1665,16 @@ function updateHud() {
     formatNavDistance(targetDistance),
     bearing,
   );
+
+  ui.updateMission({
+    target: `${target.cn} / ${String(target.en).toUpperCase()}`,
+    distance: formatNavDistance(targetDistance),
+    bearing: `${String(Math.round(bearing)).padStart(3, '0')}°`,
+    objective: `行星勘测 · ${target.cn}`,
+    progress: `勘测 ${String(game.discovered.size).padStart(2, '0')} / ${String(
+      universe.planets.length,
+    ).padStart(2, '0')}`,
+  });
 }
 
 function updateCombatHud() {
@@ -1662,6 +1723,41 @@ function updateEnemyMarkers() {
     });
   }
 
+  /* Declutter: the locked target plus one nearest hostile carry a full
+     readout; the rest collapse to a diamond and a range, nudged apart
+     so stacked contacts stay legible. */
+  const ranked = items
+    .filter((item) => item.visible)
+    .sort(
+      (a, b) =>
+        Number(Boolean(b.locked)) - Number(Boolean(a.locked)) ||
+        a.distance - b.distance,
+    );
+  const placed = [];
+  let detailed = 0;
+
+  for (const item of ranked) {
+    let x = item.x;
+    let y = item.y;
+    let compact = !item.locked && detailed >= 2;
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const crowded = placed.some(
+        (other) => Math.abs(other.x - x) < 58 && Math.abs(other.y - y) < 44,
+      );
+      if (!crowded) break;
+      compact = true;
+      y += 44;
+      if (y > height - 108) y = item.y - 44 * (attempt + 1);
+    }
+
+    placed.push({ x, y });
+    if (!compact) detailed += 1;
+    item.x = x;
+    item.y = y;
+    item.compact = compact;
+  }
+
   ui.updateEnemyMarkers(items);
 }
 
@@ -1679,12 +1775,29 @@ function updatePlanetMarkers() {
   const height = window.innerHeight;
   const items = [];
   const targetKey = universe.planets[game.targetIndex]?.key;
-  // At lightspeed the whole system collapses into the same patch of screen;
-  // keep only the navigation target so the HUD stays legible.
-  const minimalMarkers = game.warp > 0.22 || game.speed > 1500;
+  let nearestKey = null;
+  let nearestDistance = Infinity;
+  for (const planet of universe.planets) {
+    const distance = ship.root.position.distanceTo(planet.group.position);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestKey = planet.key;
+    }
+  }
+  const combatActive =
+    combat &&
+    combat.active &&
+    !game.combatDefeated &&
+    combat.getHudData().enemyCount > 0;
+  const targetOnly = combatActive || game.warp > 0.16;
+  const allowed =
+    game.tacticalScan && !game.warp
+      ? new Set(universe.planets.map((planet) => planet.key))
+      : new Set([targetKey]);
+  if (!targetOnly && !game.tacticalScan && nearestKey) allowed.add(nearestKey);
 
   for (const planet of universe.planets) {
-    if (minimalMarkers && planet.key !== targetKey) {
+    if (!allowed.has(planet.key)) {
       items.push({ key: planet.key, visible: false });
       continue;
     }
@@ -2044,7 +2157,12 @@ function onKeyDown(event) {
     return;
   }
   if (code === 'Tab') {
-    stepTarget(event.shiftKey ? -1 : 1);
+    game.tacticalScan = true;
+    ui.setTacticalScan(true);
+    return;
+  }
+  if (code === 'KeyT') {
+    stepTarget(1);
     return;
   }
   if (code === 'Escape') {
@@ -2079,6 +2197,10 @@ function onKeyUp(event) {
     game.keyFiring = false;
     syncCombatFiring();
   }
+  if (event.code === 'Tab') {
+    game.tacticalScan = false;
+    ui.setTacticalScan(false);
+  }
 }
 
 function resetInputState() {
@@ -2088,6 +2210,8 @@ function resetInputState() {
   game.touchWarp = false;
   game.keyFiring = false;
   game.touchFire = false;
+  game.tacticalScan = false;
+  ui?.setTacticalScan(false);
   combat?.setFiring(false);
   game.steerTarget.set(0, 0);
   game.pointer.down = false;

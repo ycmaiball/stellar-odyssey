@@ -776,17 +776,17 @@ import { createSkyTexture } from '../src/textures.js';
     renderer.toneMappingExposure = 1.03;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
-    const ambient = new THREE.AmbientLight(0x7c9ba7, 1.25);
+    const ambient = new THREE.AmbientLight(0x6f8d99, 0.38);
     scene.add(ambient);
-    const hemisphere = new THREE.HemisphereLight(0x9fd9ee, 0x071018, 1.35);
+    const hemisphere = new THREE.HemisphereLight(0x9fd9ee, 0x071018, 0.55);
     scene.add(hemisphere);
-    const key = new THREE.DirectionalLight(0xffe0bb, 2.6);
+    const key = new THREE.DirectionalLight(0xfff4e8, 2.9);
     key.position.set(42, 64, 54);
     scene.add(key);
-    const rim = new THREE.DirectionalLight(0x64d5ff, 2.8);
+    const rim = new THREE.DirectionalLight(0x64d5ff, 3.2);
     rim.position.set(-54, 22, -42);
     scene.add(rim);
-    const under = new THREE.PointLight(0x4e9dbb, 850, 90, 2);
+    const under = new THREE.PointLight(0x4e9dbb, 620, 90, 2);
     under.position.set(0, -20, 12);
     scene.add(under);
 
@@ -911,7 +911,7 @@ import { createSkyTexture } from '../src/textures.js';
     let pointerLastY = 0;
     let orbiting = false;
     let lastFrame = performance.now();
-    const camState = { theta: 2.35, phi: 0.34, distance: 104 };
+    const camState = { theta: 2.22, phi: 0.3, distance: 96 };
     const cameraTarget = new THREE.Vector3(0, 2, 2);
     let slotEls = new Map();
 
@@ -1309,9 +1309,9 @@ import { createSkyTexture } from '../src/textures.js';
       const eased = easeInOutCubic(mountedDockProgress);
       const targetZ = docking ? lerp(18, 2, eased) : 2;
       cameraTarget.set(0, 2, targetZ);
-      const distance = docking ? lerp(142, 104, eased) : camState.distance;
-      const theta = docking ? 2.35 : camState.theta;
-      const phi = docking ? 0.34 : camState.phi;
+      const distance = docking ? lerp(142, 96, eased) : camState.distance;
+      const theta = docking ? 2.2 : camState.theta;
+      const phi = docking ? 0.24 : camState.phi;
       camera.position.set(
         cameraTarget.x + distance * Math.cos(phi) * Math.sin(theta),
         cameraTarget.y + distance * Math.sin(phi),

@@ -2374,3 +2374,206 @@ body.scene-docking .scene-badge {
     transition-duration: 0.01ms;
   }
 }
+
+/* ── compact parts rail + refit feedback ─────────────────────── */
+
+.brand-mark {
+  cursor: default;
+}
+
+.page-footer__note {
+  color: rgba(255, 190, 120, 0.58);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.library-collapse,
+.library-expand {
+  display: none;
+}
+
+.refit-advice {
+  margin: 0 0 10px;
+  padding: 7px 9px;
+  border-left: 1px solid rgba(255, 190, 120, 0.38);
+  background: linear-gradient(90deg, rgba(255, 190, 120, 0.06), transparent 80%);
+  color: rgba(255, 205, 150, 0.68);
+  font-family: var(--mono);
+  font-size: 8px;
+  line-height: 1.6;
+  letter-spacing: 0.03em;
+}
+
+.refit-delta {
+  position: absolute;
+  left: 50%;
+  bottom: 70px;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: max-content;
+  max-width: min(440px, calc(100vw - 60px));
+  padding: 11px 20px 10px;
+  transform: translate(-50%, 8px);
+  opacity: 0;
+  visibility: hidden;
+  background: rgba(4, 13, 20, 0.84);
+  border: 1px solid rgba(108, 231, 255, 0.22);
+  border-top-color: rgba(255, 190, 120, 0.6);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  backdrop-filter: blur(16px);
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s ease;
+}
+
+.refit-delta.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+
+.refit-delta__kicker {
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size: 6px;
+  letter-spacing: 0.18em;
+}
+
+.refit-delta__values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 13px;
+  color: var(--muted-strong);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.refit-delta__values .is-up { color: #8affc1; }
+.refit-delta__values .is-down { color: #ff8875; }
+
+.refit-delta__verdict {
+  margin: 0;
+  color: rgba(255, 205, 150, 0.78);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.03em;
+}
+
+/* Rail mode only in the floating 3D workbench. */
+@media (min-width: 901px) {
+  body.has-3d .library.is-rail {
+    width: 58px;
+    max-height: calc(100% - 20px);
+    height: calc(100% - 20px);
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body.has-3d .library.is-rail > *:not(.library-expand) {
+    display: none;
+  }
+
+  body.has-3d .library.is-rail .library-expand {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    width: 100%;
+    height: 100%;
+    padding: 14px 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted-strong);
+    cursor: pointer;
+  }
+
+  body.has-3d .library.is-rail .library-expand span,
+  body.has-3d .library.is-rail .library-expand b {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 0.18em;
+  }
+
+  body.has-3d .library.is-rail .library-expand b {
+    color: var(--cyan);
+    font-size: 6px;
+    letter-spacing: 0.24em;
+  }
+
+  body.has-3d .library.is-rail .library-expand i {
+    color: var(--amber);
+    font-family: var(--mono);
+    font-size: 18px;
+    font-style: normal;
+  }
+
+  body.has-3d .library.is-rail .library-expand:hover {
+    color: var(--cyan-soft);
+    background: rgba(108, 231, 255, 0.035);
+  }
+
+  body.has-3d .library:not(.is-rail) .library-collapse {
+    display: inline-grid;
+  }
+}
+
+@media (max-width: 900px) {
+  .refit-delta {
+    bottom: 92px;
+    padding: 9px 13px;
+    max-width: calc(100vw - 28px);
+  }
+
+  .refit-delta__values {
+    gap: 9px;
+    font-size: 8px;
+  }
+
+  .refit-advice {
+    margin-bottom: 7px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refit-delta {
+    transition-duration: 0.01ms;
+  }
+}
+
+/* Compact the floating telemetry rail so the only flight exit
+   ("光速启动") stays inside the panel instead of hiding under the fold. */
+@media (min-width: 901px) {
+  body.has-3d .telemetry .stat-item { padding: 5px 0; }
+  body.has-3d .telemetry .stat-top { margin-bottom: 4px; }
+  body.has-3d .telemetry .stat-hint { margin-top: 3px; }
+  body.has-3d .telemetry .archetype {
+    min-height: 0;
+    margin-bottom: 3px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  body.has-3d .telemetry .refit-advice {
+    margin-bottom: 6px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+  body.has-3d .telemetry .panel-note { margin-top: 5px; }
+  body.has-3d .telemetry .telemetry-actions {
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+  body.has-3d .telemetry .launch-button {
+    margin-bottom: 8px;
+    padding-top: 9px;
+    padding-bottom: 8px;
+  }
+}
