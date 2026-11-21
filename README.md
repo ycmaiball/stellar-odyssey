@@ -32,6 +32,15 @@ python -m http.server 8000
 
 没有 Python 时，可使用任意静态服务器，例如 `npx serve .`。推荐 Chrome / Edge / Safari 的最新版本，并开启硬件加速。
 
+## 舰长账号
+
+首次进入会要求登记一个飞船账号（呼号 3–16 位字母 / 数字 / `_` / `-`，昵称 2–12 字，密码至少 8 位且含字母与数字）。登录后开始界面右上角显示当前舰长与「切换账号」。
+
+- 口令用 `PBKDF2-HMAC-SHA256`（210,000 次迭代、16 字节随机盐）派生后保存，浏览器里不落明文；校验使用常量时间比较。
+- 会话默认 30 天，刷新页面会自动恢复；连续 5 次错误口令锁定 1 分钟。
+- 账号、会话分别存放在 `localStorage` 的 `stellar_odyssey:accounts:v1` / `stellar_odyssey:session:v1`，可在浏览器控制台清空。
+- 当前是纯前端原型（无后端）；账号数据模型、错误码与 REST 契约见 [`docs/user-system.md`](docs/user-system.md)，接后端时按该契约为准。
+
 ## 操作
 
 | 输入 | 功能 |
@@ -149,6 +158,7 @@ stellar-odyssey/
 │  ├─ textures.js             # 程序化天空、星点、舰体贴花
 │  ├─ audio.js                # Web Audio 音景
 │  ├─ ui.js                   # HUD / 标注 / 面板 / 提示
+│  ├─ auth.js                 # 飞船账号注册、登录、会话与锁定
 │  └─ utils.js                # 数学、绘制、文本纹理工具
 ├─ shipyard/
 │  ├─ index.html              # 装配台界面、3D 画布与槽位层
@@ -156,6 +166,7 @@ stellar-odyssey/
 │  ├─ app.js                  # 零件配置、公式、拖拽、机库、导出
 │  ├─ scene3d.js              # Three.js 船坞、NX-07 与零件模型、换装动画
 │  └─ README.md               # 配置 / 公式 / 部署文档
+├─ docs/user-system.md        # 账号系统设计、数据模型与接口契约
 ├─ assets/textures/           # 行星贴图与处理脚本
 ├─ assets/screenshots/        # 项目截图
 └─ vendor/                    # 本地 Three.js 与后期模块

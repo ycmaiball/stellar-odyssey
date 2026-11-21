@@ -12,6 +12,7 @@ import { createAudioEngine } from './audio.js';
 import { createUI } from './ui.js';
 import { createCombatSystem } from './combat.js';
 import { createWarpCockpit } from './cockpit.js';
+import { createAuthSystem } from './auth.js';
 import { clamp, damp, formatNumber } from './utils.js';
 
 /* ─────────────────────────────────────────────────────────────
@@ -123,6 +124,7 @@ let raycaster = null;
 let universe = null;
 let ship = null;
 let warpCockpitRig = null;
+let auth = null;
 let combat = null;
 
 let bootStartedAt = performance.now();
@@ -253,6 +255,47 @@ const GradeShader = {
 
 init();
 
+/* ── crew registry ─────────────────────────────────────────── */
+
+function applyPilot(session) {
+  const chip = document.getElementById('start-pilot');
+  const name = document.getElementById('start-pilot-name');
+  if (!chip || !name) return;
+  const bar = chip.closest('.start-topbar__right');
+  if (!session) {
+    chip.classList.add('is-hidden');
+    bar?.classList.remove('has-pilot');
+    name.textContent = '—';
+    return;
+  }
+  bar?.classList.add('has-pilot');
+  name.textContent = session.nickname || session.callsign;
+  name.title = `${session.nickname || session.callsign} · ${session.callsign}`;
+  chip.classList.remove('is-hidden');
+}
+
+function setupAuth() {
+  auth = createAuthSystem({
+    onAuthed: (session) => applyPilot(session),
+    onSignedOut: () => applyPilot(null),
+  });
+
+  document.getElementById('btn-signout')?.addEventListener('click', () => {
+    if (!auth) return;
+    ui.showToast({
+      kicker: 'CREW / LINK',
+      title: '已退出舰长档案',
+      text: '会话已清除，账号记录仍保留在本机。',
+      tone: 'system',
+      duration: 3200,
+    });
+    auth.signOut();
+  });
+
+  const session = auth.getSession();
+  if (session) applyPilot(session);
+}
+
 function init() {
   bootStartedAt = performance.now();
   ui.setMode('boot');
@@ -266,6 +309,7 @@ function init() {
     setupWarpCockpit();
     setupPostprocessing();
     setupInterface();
+    setupAuth();
     setupCombat();
     bindInput();
     onResize();
@@ -291,6 +335,9 @@ function init() {
       },
       get warpCockpitRig() {
         return warpCockpitRig;
+      },
+      get auth() {
+        return auth;
       },
       get camera() {
         return camera;
@@ -683,7 +730,12 @@ function finalizeBoot(failed) {
   if (failed) {
     console.warn('[stellar] boot completed with degraded assets:', assetsFailed);
   }
-  if (ARRIVAL_FROM_SHIPYARD) {
+  /* The crew registry stands between the boot screen and the mission: no
+     session means the start button stays behind the auth layer. */
+  const proceed = () => {
+    const active = auth?.getSession() || null;
+    applyPilot(active);
+    if (!ARRIVAL_FROM_SHIPYARD) return;
     /* The shipyard has already played the launch. Skip the second
        start-screen confirmation and slide straight into the cockpit. */
     window.setTimeout(() => {
@@ -694,6 +746,13 @@ function finalizeBoot(failed) {
         document.body.classList.remove('is-launch-arrival');
       }, 1100);
     }, 1000);
+  };
+
+  if (auth?.getSession()) {
+    window.setTimeout(proceed, 0);
+  } else if (auth) {
+    /* let the boot bar finish its own fade before the registry takes over */
+    window.setTimeout(() => auth.open(proceed), 900);
   }
 }
 

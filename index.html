@@ -49,6 +49,126 @@
       </div>
     </div>
 
+    <!-- ── crew registry ────────────────────────────────────── -->
+    <section id="auth-screen" class="auth-screen is-hidden" aria-label="飞船账号认证">
+      <div class="auth-grid" aria-hidden="true"></div>
+      <div class="auth-glow" aria-hidden="true"></div>
+
+      <header class="auth-topbar">
+        <div class="wordmark">
+          <span class="wordmark__glyph">◈</span>
+          <span class="wordmark__text">STELLAR ODYSSEY</span>
+          <span class="wordmark__tag">CREW REGISTRY / 舰长档案</span>
+        </div>
+        <div class="auth-topbar__meta">
+          <span class="status-dot"></span>
+          <span>IDENTITY LINK · 需要舰长认证</span>
+        </div>
+      </header>
+
+      <div class="auth-body">
+        <aside class="auth-brief">
+          <p class="auth-brief__kicker">NX-07 / DEEP SPACE PROGRAM</p>
+          <h1 class="auth-brief__title">登记你的<br />飞船呼号</h1>
+          <p class="auth-brief__copy">
+            一个呼号对应一名舰长与一艘 NX-07。认证之后，航行记录、装配方案与战斗数据都会挂在这份档案下。
+          </p>
+          <ul class="auth-brief__list">
+            <li><b>01</b><span>呼号唯一 · 3–16 位字母、数字、下划线</span></li>
+            <li><b>02</b><span>密码以 PBKDF2-SHA256 哈希保存，不落明文</span></li>
+            <li><b>03</b><span>会话 30 天 · 刷新页面保持登录</span></li>
+          </ul>
+          <p class="auth-brief__note">
+            本地原型：账号数据仅保存在本机浏览器，请勿使用真实密码。
+          </p>
+        </aside>
+
+        <div class="auth-card">
+          <div class="auth-tabs" role="tablist" aria-label="注册或登录">
+            <button id="auth-tab-register" class="auth-tab is-active" type="button" role="tab" aria-selected="true">
+              注册飞船账号
+              <em>REGISTER</em>
+            </button>
+            <button id="auth-tab-login" class="auth-tab" type="button" role="tab" aria-selected="false">
+              已有账号 / 登录
+              <em>SIGN IN</em>
+            </button>
+          </div>
+
+          <p id="auth-summary" class="auth-summary">注册后，航行记录与装配方案都会挂在你的呼号下。</p>
+
+          <div id="auth-error" class="auth-error" role="alert" aria-live="polite"></div>
+          <p id="auth-lockout" class="auth-lockout" role="status" aria-live="polite"></p>
+
+          <form id="auth-form-register" class="auth-form" novalidate aria-label="注册飞船账号">
+            <label class="auth-field">
+              <span class="auth-field__label">飞船账号 <em>CALLSIGN</em></span>
+              <input id="auth-callsign" data-field="callsign" name="callsign" type="text"
+                     autocomplete="username" spellcheck="false" maxlength="16" placeholder="NX-07" />
+              <span class="auth-field__error" data-error-for="callsign"></span>
+            </label>
+
+            <label class="auth-field">
+              <span class="auth-field__label">舰长昵称 <em>CAPTAIN NAME</em></span>
+              <input id="auth-nickname" data-field="nickname" name="nickname" type="text"
+                     autocomplete="nickname" maxlength="12" placeholder="林深" />
+              <span class="auth-field__error" data-error-for="nickname"></span>
+            </label>
+
+            <label class="auth-field">
+              <span class="auth-field__label">密码 <em>PASSPHRASE</em></span>
+              <input id="auth-password" data-field="password" name="password" type="password"
+                     autocomplete="new-password" maxlength="64" placeholder="至少 8 位，含字母与数字" />
+              <span class="auth-field__error" data-error-for="password"></span>
+              <span class="auth-strength">
+                <span class="auth-strength__track"><span id="auth-strength-fill" class="auth-strength__fill"></span></span>
+                <span id="auth-strength-label" class="auth-strength__label">强度 · 未设置</span>
+              </span>
+            </label>
+
+            <label class="auth-field">
+              <span class="auth-field__label">确认密码 <em>CONFIRM</em></span>
+              <input id="auth-confirm" data-field="confirm" name="confirm" type="password"
+                     autocomplete="new-password" maxlength="64" placeholder="再次输入密码" />
+              <span class="auth-field__error" data-error-for="confirm"></span>
+            </label>
+
+            <button id="auth-submit-register" class="auth-submit" type="submit">
+              <span class="auth-submit__label">创建飞船账号</span>
+              <span class="auth-submit__en">CREATE CREW ID</span>
+              <span class="auth-submit__arrow">→</span>
+            </button>
+          </form>
+
+          <form id="auth-form-login" class="auth-form is-hidden" novalidate aria-label="登录飞船账号">
+            <label class="auth-field">
+              <span class="auth-field__label">飞船账号 <em>CALLSIGN</em></span>
+              <input id="auth-login-callsign" data-field="login-callsign" name="login-callsign" type="text"
+                     autocomplete="username" spellcheck="false" maxlength="16" placeholder="NX-07" />
+              <span class="auth-field__error" data-error-for="login-callsign"></span>
+            </label>
+
+            <label class="auth-field">
+              <span class="auth-field__label">密码 <em>PASSPHRASE</em></span>
+              <input id="auth-login-password" data-field="login-password" name="login-password" type="password"
+                     autocomplete="current-password" maxlength="64" placeholder="输入密码" />
+              <span class="auth-field__error" data-error-for="login-password"></span>
+            </label>
+
+            <button id="auth-submit-login" class="auth-submit" type="submit">
+              <span class="auth-submit__label">登录并进入驾驶舱</span>
+              <span class="auth-submit__en">SIGN IN</span>
+              <span class="auth-submit__arrow">→</span>
+            </button>
+          </form>
+
+          <p id="auth-storage-note" class="auth-storage-note">
+            无后端原型 · 账号仅存于本机浏览器
+          </p>
+        </div>
+      </div>
+    </section>
+
     <!-- ── start ────────────────────────────────────────────── -->
     <section id="start-screen" class="start-screen is-hidden" aria-label="任务开始">
       <div class="start-frame" aria-hidden="true"></div>
@@ -59,6 +179,14 @@
           <span class="wordmark__tag">DEEP SPACE PROGRAM</span>
         </div>
         <div class="start-topbar__right">
+          <div id="start-pilot" class="start-pilot is-hidden">
+            <span class="start-pilot__glyph" aria-hidden="true">◈</span>
+            <span class="start-pilot__copy">
+              <span class="start-pilot__kicker">CAPTAIN / 舰长</span>
+              <span class="start-pilot__name" id="start-pilot-name">—</span>
+            </span>
+            <button id="btn-signout" type="button" class="start-pilot__signout">切换账号</button>
+          </div>
           <div class="start-status">
             <span class="status-dot"></span>
             <span>系统就绪 / ALL SYSTEMS NOMINAL</span>
