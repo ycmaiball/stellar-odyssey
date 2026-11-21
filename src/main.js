@@ -78,6 +78,9 @@ const game = {
   warpWarningShown: false,
   warpFlashArmed: true,
   warpCockpit: 0,
+  aimMode: false,
+  aimBlend: 0,
+  pointerFiring: false,
   cockpitShipHidden: false,
   cockpitRigVisible: false,
   autopilot: false,
@@ -218,6 +221,7 @@ const ui = createUI({
   onAbort: requestAbort,
   onAbortConfirm: confirmAbort,
   onMissile: fireMissile,
+  onExitFlight: leaveFlightToStart,
 });
 
 
@@ -733,12 +737,30 @@ function setupContracts() {
   ui.updateContract(contracts.getHudData());
 }
 
+function toggleAimMode(force) {
+  if (!ui) return;
+  if (game.mode !== 'flight' || game.combatDefeated) return;
+  const next = typeof force === 'boolean' ? force : !game.aimMode;
+  if (next === game.aimMode) return;
+  game.aimMode = next;
+  combat?.setAimMode(next);
+  ui.setAimMode(next);
+  if (next) {
+    game.autopilot = false;
+    ui.setAutopilot(false);
+    ui.showAlert('辅助瞄准 · 左键开火 · 再次右键退出', 2200);
+  } else {
+    ui.showAlert('返回第三人称射击', 1600);
+  }
+  audio.click();
+}
+
 function syncCombatFiring() {
   if (!combat) return;
   combat.setFiring(
     game.mode === 'flight' &&
       !game.combatDefeated &&
-      (game.keyFiring || game.touchFire),
+      (game.keyFiring || game.touchFire || game.pointerFiring),
   );
 }
 
@@ -918,12 +940,43 @@ function finalizeBoot(failed) {
   }
 }
 
+function leaveFlightToStart() {
+  if (!ui || game.mode !== 'flight') return;
+  resetWarpCockpit();
+  toggleAimMode(false);
+  resetInputState();
+  if (combat) {
+    combat.setFiring(false);
+    combat.stop();
+  }
+  ui.setCombatActive(false);
+  ui.updateEnemyMarkers([]);
+  ui.setAbortEnabled(false);
+  game.mode = 'start';
+  game.started = false;
+  game.cameraMode = 'menu';
+  game.menuTheta = 2.0;
+  game.throttle = 0.36;
+  game.speed = 0;
+  game.warp = 0;
+  game.aimMode = false;
+  game.aimBlend = 0;
+  game.combatDefeated = false;
+  ship?.reset?.();
+  ui.returnToStart();
+  audio.back();
+  audio.setFlight({ throttle: 0, warp: 0, speed: 0 });
+}
+
 function startMission() {
   if (!game.booted || game.started) return;
   game.started = true;
   game.mode = 'flight';
   game.cameraMode = 'chase';
   resetWarpCockpit();
+  game.aimMode = false;
+  game.aimBlend = 0;
+  game.pointerFiring = false;
   game.startedAt = game.clock;
   game.elapsed = 0;
   game.distanceTraveled = 0;
@@ -974,6 +1027,8 @@ function startMission() {
       combat.setHull(seedHull);
       if (seedHull !== progression.hull) progression.setHull(seedHull);
     }
+    combat.setAimMode(false);
+    ui.setAimMode(false);
     ui.setCombatActive(true);
     ui.updateCombat(combat.getHudData());
   }
@@ -1023,6 +1078,7 @@ function startMission() {
 
 function enterInspection() {
   if (game.mode !== 'flight' || !ship || game.combatDefeated) return;
+  toggleAimMode(false);
   resetWarpCockpit();
   game.tacticalScan = false;
   ui.setTacticalScan(false);
@@ -1347,7 +1403,7 @@ function updateFlight(dt) {
     dt,
   );
 
-  const hideShip = game.warpCockpit > 0.58;
+  const hideShip = Math.max(game.warpCockpit, game.aimBlend) > 0.58;
   if (hideShip !== game.cockpitShipHidden) {
     game.cockpitShipHidden = hideShip;
     if (ship.visual) ship.visual.visible = !hideShip;
@@ -1355,12 +1411,13 @@ function updateFlight(dt) {
   }
 
   if (warpCockpitRig) {
-    const rigVisible = game.warpCockpit > (game.cockpitRigVisible ? 0.42 : 0.55);
+    const cockpitAmount = Math.max(game.warpCockpit, game.aimBlend);
+    const rigVisible = cockpitAmount > (game.cockpitRigVisible ? 0.42 : 0.55);
     if (rigVisible !== game.cockpitRigVisible) {
       game.cockpitRigVisible = rigVisible;
       warpCockpitRig.setActive(rigVisible);
     }
-    warpCockpitRig.update(dt, game.warp, game.warpCockpit);
+    warpCockpitRig.update(dt, game.warp, cockpitAmount);
   }
   syncWarpCockpitUi();
 }
@@ -1432,6 +1489,11 @@ function updateWarpState() {
 
 function updateShipVisual(dt) {
   if (!ship) return;
+  if (game.mode === 'flight') {
+    game.aimBlend = damp(game.aimBlend, game.aimMode ? 1 : 0, game.aimMode ? 6.4 : 4.6, dt);
+  } else if (game.aimBlend > 0) {
+    game.aimBlend = damp(game.aimBlend, 0, 8, dt);
+  }
   if (game.mode === 'flight') {
     ship.update({
       dt,
@@ -1635,6 +1697,7 @@ function primeChaseCamera() {
 
 function resetWarpCockpit() {
   game.warpCockpit = 0;
+  game.aimBlend = 0;
   game.cockpitShipHidden = false;
   game.cockpitRigVisible = false;
   if (ship?.visual) ship.visual.visible = true;
@@ -1645,7 +1708,7 @@ function resetWarpCockpit() {
 
 function syncWarpCockpitUi() {
   if (!ui) return;
-  ui.setWarpCockpit(game.warpCockpit > 0.06);
+  ui.setWarpCockpit(game.warpCockpit > 0.06 || game.aimBlend > 0.06);
 }
 
 function updateMenuCamera(dt) {
@@ -1718,7 +1781,9 @@ function updateChaseCamera(dt) {
   game.cameraLook.copy(lookTarget);
   camera.lookAt(lookTarget);
 
-  const blend = game.warpCockpit * game.warpCockpit * (3 - 2 * game.warpCockpit);
+  const warpBlend = game.warpCockpit * game.warpCockpit * (3 - 2 * game.warpCockpit);
+  const aimBlend = game.aimBlend * game.aimBlend * (3 - 2 * game.aimBlend);
+  const blend = Math.max(warpBlend, aimBlend);
   const baseFov = 57 + game.warp * 8;
   if (blend > 0.001) {
     cockpitPosition
@@ -2349,6 +2414,9 @@ function bindInput() {
 
   const canvas = renderer.domElement;
   canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('auxclick', (event) => {
+    if (event.button === 2) event.preventDefault();
+  });
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
   canvas.addEventListener('pointercancel', onPointerUp);
@@ -2470,6 +2538,7 @@ function resetInputState() {
   game.touchWarp = false;
   game.keyFiring = false;
   game.touchFire = false;
+  game.pointerFiring = false;
   game.tacticalScan = false;
   ui?.setTacticalScan(false);
   combat?.setFiring(false);
@@ -2483,10 +2552,17 @@ function resetInputState() {
 }
 
 function onPointerDown(event) {
+  if (event.pointerType === 'mouse' && event.button === 2) {
+    event.preventDefault();
+    toggleAimMode();
+    return;
+  }
   if (event.pointerType === 'mouse' && event.button !== 0) return;
 
   if (game.mode === 'flight') {
     if (game.autopilot) manualTakeover();
+    game.pointerFiring = true;
+    syncCombatFiring();
     game.pointer.down = true;
     game.pointer.id = event.pointerId;
     game.pointer.startX = event.clientX;
@@ -2553,6 +2629,10 @@ function onPointerUp(event) {
 
   game.pointer.down = false;
   game.pointer.id = null;
+  if (game.pointerFiring) {
+    game.pointerFiring = false;
+    syncCombatFiring();
+  }
   game.inspect.dragging = false;
   game.inspect.lastInput = game.clock;
   game.steerTarget.set(0, 0);

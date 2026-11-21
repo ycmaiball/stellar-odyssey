@@ -18,8 +18,16 @@ const MISSILE_LIFE = 6.5;
 const MISSILE_DAMAGE = 38;
 
 const PLAYER_FIRE_INTERVAL = 0.18;
-const PLAYER_HEAT_PER_SHOT = 5.2;
-const PLAYER_COOL_RATE = 17;
+const PLAYER_AIM_FIRE_INTERVAL = 0.09;
+const PLAYER_BOLT_DAMAGE = 4.4;
+const PLAYER_AIM_BOLT_DAMAGE = 2.3;
+const FIRE_BUDGET_SECONDS = 6;
+const FIRE_LOCK_SECONDS = 16;
+const BOLT_FLIGHT_TIME = 0.1;
+const PLAYER_SPREAD = THREE.MathUtils.degToRad(12.5);
+const PLAYER_HIT_ANGLE = THREE.MathUtils.degToRad(10);
+const PLAYER_BOLT_MIN_SPEED = 900;
+const PLAYER_BOLT_MAX_SPEED = 2600;
 const PLAYER_SHIELD_REGEN = 7.5;
 const PLAYER_SHIELD_DELAY = 4.6;
 const PLAYER_LOCK_RANGE = 780;
@@ -88,6 +96,7 @@ export class CombatSystem {
     this.enemies = [];
     this.projectiles = [];
     this.missiles = [];
+    this.bolts = [];
     this.effects = [];
     this.nextEnemyId = 1;
     this.firing = false;
@@ -104,6 +113,10 @@ export class CombatSystem {
       hullMax: PLAYER_MAX_HULL,
       heat: 0,
       overheated: false,
+      budget: FIRE_BUDGET_SECONDS,
+      fireLocked: false,
+      lockTimer: 0,
+      aimMode: false,
       fireTimer: 0,
       lastHitAt: -100,
       kills: 0,
@@ -122,7 +135,7 @@ export class CombatSystem {
       engineGlow: new THREE.CylinderGeometry(0.28, 0.28, 0.16, 8),
       cockpit: new THREE.SphereGeometry(0.58, 8, 6),
       bolt: new THREE.SphereGeometry(0.48, 8, 6),
-      beam: new THREE.CylinderGeometry(0.13, 0.13, 1, 6, 1, true),
+      playerBolt: new THREE.SphereGeometry(0.5, 10, 8),
       shield: new THREE.SphereGeometry(28, 24, 12),
     };
     this.geometries.body.rotateX(Math.PI / 2);
@@ -159,6 +172,22 @@ export class CombatSystem {
       bolt: new THREE.MeshBasicMaterial({
         color: 0xff5b42,
         toneMapped: false,
+      }),
+      playerBolt: new THREE.MeshBasicMaterial({
+        color: 0x9fe8ff,
+        toneMapped: false,
+        transparent: true,
+        opacity: 0.92,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+      playerBoltCore: new THREE.MeshBasicMaterial({
+        color: 0xeafcff,
+        toneMapped: false,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
       }),
       shield: new THREE.MeshBasicMaterial({
         color: 0x8be9ff,
@@ -326,6 +355,9 @@ export class CombatSystem {
     this.player.hull = PLAYER_MAX_HULL;
     this.player.heat = 0;
     this.player.overheated = false;
+    this.player.budget = FIRE_BUDGET_SECONDS;
+    this.player.fireLocked = false;
+    this.player.lockTimer = 0;
     this.player.fireTimer = 0;
     this.player.lastHitAt = -100;
     this.player.kills = 0;
@@ -342,6 +374,7 @@ export class CombatSystem {
   setActive(active) {
     this.active = Boolean(active);
     for (const missile of this.missiles) missile.group.visible = this.active;
+    for (const bolt of this.bolts) bolt.mesh.visible = this.active;
     if (!this.active) {
       this.firing = false;
       this.target = null;
@@ -354,6 +387,10 @@ export class CombatSystem {
 
   setFiring(firing) {
     this.firing = Boolean(firing) && this.active && !this.defeated;
+  }
+
+  setAimMode(aim) {
+    this.player.aimMode = Boolean(aim);
   }
 
   respawn() {
@@ -384,6 +421,10 @@ export class CombatSystem {
       this.scene.remove(projectile.mesh);
     }
     this.projectiles.length = 0;
+    for (const bolt of this.bolts) {
+      this.scene.remove(bolt.mesh);
+    }
+    this.bolts.length = 0;
   }
 
   _clearEffects() {
@@ -459,6 +500,19 @@ export class CombatSystem {
   }
 
   _acquireTarget(forward, playerPos) {
+    /* Keep the current lock while the target stays alive and inside the
+       cone, so sustained fire converges on one raider instead of spreading
+       damage across the whole formation. */
+    if (this.target && this.target.alive) {
+      _v1.copy(this.target.group.position).sub(playerPos);
+      const keepDistance = _v1.length();
+      if (
+        keepDistance <= PLAYER_LOCK_RANGE &&
+        forward.dot(_v1.normalize()) >= PLAYER_LOCK_COS
+      ) {
+        return this.target;
+      }
+    }
     let best = null;
     let bestScore = -Infinity;
     for (const enemy of this.enemies) {
@@ -478,47 +532,171 @@ export class CombatSystem {
   }
 
   _fire() {
-    if (this.player.overheated || this.defeated) return;
+    if (this.player.fireLocked || this.defeated) return;
     const playerPos = this.ship.root.position;
     const forward = _v1.set(0, 0, -1).applyQuaternion(this.ship.root.quaternion);
     const target = this._acquireTarget(forward, playerPos);
+    const aiming = this.player.aimMode;
+    const damage = aiming ? PLAYER_AIM_BOLT_DAMAGE : PLAYER_BOLT_DAMAGE;
 
-    this.player.fireTimer = PLAYER_FIRE_INTERVAL;
-    this.player.heat = Math.min(100, this.player.heat + PLAYER_HEAT_PER_SHOT);
-    if (this.player.heat >= 100) {
-      this.player.overheated = true;
-      this.callbacks.onWeaponOverheat?.();
-    }
+    /* Aim mode doubles the cadence and halves per-bolt damage, so the
+       sustained output of both modes stays in the same band. */
+    this.player.fireTimer = aiming ? PLAYER_AIM_FIRE_INTERVAL : PLAYER_FIRE_INTERVAL;
 
     const localMuzzles = [
       [-9.8, 0.5, -7.5],
       [9.8, 0.5, -7.5],
     ];
     this.ship.root.updateMatrixWorld();
+
     for (const local of localMuzzles) {
       const origin = this.ship.root.localToWorld(
         new THREE.Vector3(local[0], local[1], local[2]),
       );
-      let endpoint;
-      if (target) {
-        endpoint = _v2.copy(target.group.position);
-        const distance = origin.distanceTo(endpoint);
-        endpoint.addScaledVector(target.velocity, distance / 1800);
-        endpoint.x += randRange(Math.random, -0.7, 0.7);
-        endpoint.y += randRange(Math.random, -0.5, 0.5);
-        endpoint.z += randRange(Math.random, -0.7, 0.7);
+      const distanceToTarget = target
+        ? origin.distanceTo(target.group.position)
+        : 520;
+      const leadPoint = target
+        ? _v2
+            .copy(target.group.position)
+            .addScaledVector(target.velocity, distanceToTarget / 1400)
+        : _v2.copy(origin).addScaledVector(forward, 520);
+      const baseDir = _v3.copy(leadPoint).sub(origin).normalize();
+
+      /* A shot always leaves inside the ±12.5° cone. Inside 10° it is a
+         connecting shot; 10°–12.5° is the visible escape band. */
+      const spread = Math.sqrt(Math.random()) * PLAYER_SPREAD;
+      const roll = Math.random() * Math.PI * 2;
+      const axisHint = _v4.set(Math.cos(roll), Math.sin(roll), 0);
+      const axis = new THREE.Vector3().crossVectors(baseDir, axisHint);
+      if (axis.lengthSq() < 1e-5) axis.set(1, 0, 0).cross(baseDir);
+      axis.normalize();
+      const aimed = Boolean(target) && spread <= PLAYER_HIT_ANGLE;
+      /* A connecting shot still shows a little scatter, but only a fraction
+         of the rolled spread, so the gentle homing arc lands inside the
+         target; an escaping shot keeps the full off-axis angle. */
+      const visualSpread = aimed ? spread * 0.22 : spread;
+      const direction = baseDir
+        .clone()
+        .applyAxisAngle(axis, visualSpread)
+        .normalize();
+
+      if (aimed) {
+        this._spawnPlayerBolt(origin, direction, target, damage);
       } else {
-        endpoint = _v2.copy(origin).addScaledVector(forward, 520);
+        const missPoint = leadPoint
+          .clone()
+          .addScaledVector(axis, randRange(Math.random, 40, 95))
+          .addScaledVector(forward, randRange(Math.random, -30, 30));
+        this._spawnPlayerBolt(
+          origin,
+          missPoint.sub(origin).normalize(),
+          null,
+          0,
+        );
       }
-      this._spawnBeam(origin, endpoint, 0x7defff, 0.12);
-      this._spawnMuzzle(origin, 0x8be9ff);
+      this._spawnMuzzle(origin, 0x6fd8ff);
     }
 
-    if (target) {
-      this._damageEnemy(target, 12.5, target.group.position);
-    }
-    this._playTone(980, 310, 0.09, 0.022, 'square');
+    this._playTone(1180, 420, 0.07, 0.02, 'square');
     this.callbacks.onPlayerFire?.(target);
+  }
+
+  _spawnPlayerBolt(origin, direction, target, damage) {
+    const mesh = new THREE.Mesh(this.geometries.playerBolt, this.materials.playerBolt);
+    const distance = target ? origin.distanceTo(target.group.position) : 520;
+    const speed = clamp(distance / BOLT_FLIGHT_TIME, PLAYER_BOLT_MIN_SPEED, PLAYER_BOLT_MAX_SPEED);
+
+    const core = new THREE.Mesh(this.geometries.playerBolt, this.materials.playerBoltCore);
+    core.scale.setScalar(0.52);
+    mesh.add(core);
+
+    mesh.scale.set(0.62, 0.62, 2.5);
+    mesh.position.copy(origin);
+    mesh.quaternion.setFromUnitVectors(FORWARD, direction);
+    this.scene.add(mesh);
+    this.bolts.push({
+      mesh,
+      velocity: direction.clone().multiplyScalar(speed),
+      speed,
+      damage,
+      target,
+      life: Math.max(0.14, distance / speed + 0.3),
+      trailTimer: 0,
+    });
+  }
+
+  _updatePlayerBolts(dt) {
+    for (let i = this.bolts.length - 1; i >= 0; i -= 1) {
+      const bolt = this.bolts[i];
+      if (!bolt) {
+        this.bolts.splice(i, 1);
+        continue;
+      }
+      bolt.life -= dt;
+      const target = bolt.target;
+
+      if (target && !target.dead) {
+        const toTarget = _v1.copy(target.group.position).sub(bolt.mesh.position);
+        const distance = toTarget.length();
+        const lead = distance / Math.max(1, bolt.speed);
+        const predicted = _v2
+          .copy(target.group.position)
+          .addScaledVector(target.velocity, lead);
+        const desired = _v3.copy(predicted).sub(bolt.mesh.position);
+        if (desired.lengthSq() > 1e-4) {
+          desired.normalize();
+          const current = _v4.copy(bolt.velocity).normalize();
+          /* Soft homing: a visible, gentle bend rather than a snap turn. */
+          current.lerp(desired, Math.min(1, 3.2 * dt)).normalize();
+          bolt.velocity.copy(current).multiplyScalar(bolt.speed);
+          bolt.mesh.quaternion.setFromUnitVectors(FORWARD, current);
+        }
+      }
+
+      /* Swept hit test: at 900–2600 u/s one frame can cover ~50 units, so a
+         sphere-overlap test would tunnel straight through the target. */
+      const previous = _v5.copy(bolt.mesh.position);
+      bolt.mesh.position.addScaledVector(bolt.velocity, dt);
+      if (target && !target.dead) {
+        const segment = _v1.copy(bolt.mesh.position).sub(previous);
+        const toTarget = _v2.copy(target.group.position).sub(previous);
+        const segLenSq = Math.max(1e-6, segment.lengthSq());
+        const t = clamp(toTarget.dot(segment) / segLenSq, 0, 1);
+        const closest = previous.clone().addScaledVector(segment, t);
+        if (closest.distanceTo(target.group.position) < 28) {
+          this._spawnHit(closest, 0x8be9ff, 0.7);
+          this._damageEnemy(target, bolt.damage, closest);
+          this.scene.remove(bolt.mesh);
+          this.bolts.splice(i, 1);
+          continue;
+        }
+      }
+      bolt.trailTimer -= dt;
+      if (bolt.trailTimer <= 0) {
+        bolt.trailTimer = 0.06;
+        this._spawnSpark(bolt.mesh.position);
+      }
+      if (bolt.life <= 0) {
+        this.scene.remove(bolt.mesh);
+        this.bolts.splice(i, 1);
+      }
+    }
+  }
+
+  _spawnSpark(position) {
+    const sprite = glowSprite(this.glowTexture, 0x7fd8ff, 1.1, 0.4);
+    sprite.position.copy(position);
+    this.scene.add(sprite);
+    this.effects.push({
+      kind: 'spark',
+      object: sprite,
+      spriteMaterial: sprite.material,
+      life: 0.12,
+      maxLife: 0.12,
+      startSize: 0.7,
+      endSize: 1.7,
+    });
   }
 
   fireMissile() {
@@ -635,31 +813,6 @@ export class CombatSystem {
   setHull(value) {
     this.player.hull = Math.max(0, Math.min(this.player.hullMax, Number(value) || 0));
     return this.player.hull;
-  }
-
-  _spawnBeam(from, to, color, width) {
-    const material = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.95,
-      toneMapped: false,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const mesh = new THREE.Mesh(this.geometries.beam, material);
-    mesh.position.copy(from).add(to).multiplyScalar(0.5);
-    _v1.copy(to).sub(from);
-    const length = _v1.length();
-    mesh.quaternion.setFromUnitVectors(Y_AXIS, _v1.normalize());
-    mesh.scale.set(width / 0.13, length, width / 0.13);
-    this.scene.add(mesh);
-    this.effects.push({
-      kind: 'beam',
-      object: mesh,
-      material,
-      life: 0.075,
-      maxLife: 0.075,
-    });
   }
 
   _spawnMuzzle(position, color) {
@@ -900,16 +1053,33 @@ export class CombatSystem {
       );
     }
 
-    if (this.player.overheated) {
-      this.player.heat = Math.max(0, this.player.heat - 18 * dt);
-      if (this.player.heat <= 0) {
-        this.player.overheated = false;
+    /* Fire-time pool: 6 s of continuous fire, a hard 16 s lock when it is
+       emptied, and a 1:1 refund of every second the trigger is released
+       before the pool runs dry. */
+    if (this.player.fireLocked) {
+      this.player.lockTimer = Math.max(0, this.player.lockTimer - dt);
+      if (this.player.lockTimer <= 0) {
+        this.player.fireLocked = false;
+        this.player.budget = FIRE_BUDGET_SECONDS;
         this.callbacks.onWeaponReady?.();
       }
+    } else if (this.firing) {
+      this.player.budget = Math.max(0, this.player.budget - dt);
+      if (this.player.budget <= 0) {
+        this.player.fireLocked = true;
+        this.player.lockTimer = FIRE_LOCK_SECONDS;
+        this.firing = false;
+        this.callbacks.onWeaponOverheat?.();
+      }
     } else {
-      const cooling = this.firing ? 5.2 : PLAYER_COOL_RATE;
-      this.player.heat = Math.max(0, this.player.heat - cooling * dt);
+      this.player.budget = Math.min(FIRE_BUDGET_SECONDS, this.player.budget + dt);
     }
+    this.player.overheated = this.player.fireLocked;
+    this.player.heat = clamp(
+      (1 - this.player.budget / FIRE_BUDGET_SECONDS) * 100,
+      0,
+      100,
+    );
 
     this.player.missileTimer = Math.max(0, this.player.missileTimer - dt);
     this.player.fireTimer -= dt;
@@ -927,6 +1097,7 @@ export class CombatSystem {
 
     this._updateEnemies(dt, playerPos, forward);
     this._updateProjectiles(dt, playerPos);
+    this._updatePlayerBolts(dt);
     this._updateMissiles(dt);
     this._updateEffects(dt);
     this._acquireTarget(forward, playerPos);
@@ -1036,8 +1207,13 @@ export class CombatSystem {
         if (effect.spriteMaterial) {
           effect.spriteMaterial.opacity = Math.max(0, 0.9 * (1 - progress));
         }
-      } else if (effect.kind === 'beam') {
-        effect.material.opacity = Math.max(0, 0.9 * (1 - progress));
+      } else if (effect.kind === 'spark') {
+        const size =
+          effect.startSize + (effect.endSize - effect.startSize) * progress;
+        effect.object.scale.set(size, size, 1);
+        if (effect.spriteMaterial) {
+          effect.spriteMaterial.opacity = Math.max(0, 0.4 * (1 - progress));
+        }
       } else if (effect.kind === 'debris') {
         effect.material.opacity = Math.max(0, 0.9 * (1 - progress));
         for (const shard of effect.object.children) {
@@ -1066,7 +1242,12 @@ export class CombatSystem {
       hull: this.player.hull,
       hullMax: this.player.hullMax,
       heat: this.player.heat,
-      overheated: this.player.overheated,
+      overheated: this.player.fireLocked,
+      fireBudget: this.player.budget,
+      fireBudgetMax: FIRE_BUDGET_SECONDS,
+      fireLocked: this.player.fireLocked,
+      lockTimer: this.player.lockTimer,
+      aimMode: this.player.aimMode,
       firing: this.firing,
       kills: this.kills,
       wave: this.wave,

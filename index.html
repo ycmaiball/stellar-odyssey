@@ -279,6 +279,10 @@
     <!-- ── HUD ──────────────────────────────────────────────── -->
     <div id="hud" class="hud is-hidden" aria-label="飞行抬头显示">
       <div class="hud-top">
+        <button id="btn-exit-flight" type="button" class="hud-icon-button hud-exit" aria-label="退出飞行返回起始界面">
+          <span class="hud-icon-button__glyph">⏻</span>
+          <span class="hud-icon-button__label">退出</span>
+        </button>
         <div class="hud-brand">
           <span class="hud-brand__mark">◈</span>
           <div>
@@ -366,7 +370,7 @@
           <span id="warp-cockpit-speed" class="warp-cockpit__speed">0.000 c</span>
           <span class="warp-cockpit__sub">Interstellar Transit / 星际航路</span>
         </div>
-        <span class="warp-cockpit__hint">拖拽修正航向 · 松开 SHIFT 退出曲速</span>
+        <span id="warp-cockpit-hint" class="warp-cockpit__hint">拖拽修正航向 · 松开 SHIFT 退出曲速</span>
       </div>
 
       <div class="reticle" aria-hidden="true">
@@ -524,7 +528,7 @@
         </div>
         <div class="combat-bar combat-bar--heat">
           <div class="combat-bar__head">
-            <span>武器温度 / HEAT</span>
+            <span>开火余量 / BUDGET</span>
             <span id="combat-weapon-state">就绪</span>
           </div>
           <div class="combat-bar__track"><i id="combat-heat-fill"></i></div>

@@ -191,6 +191,8 @@ export class GameUI {
       abortCredits: $('abort-credits'),
       missilePips: $('missile-pips'),
       missileState: $('missile-state'),
+      exitFlight: $('btn-exit-flight'),
+      warpHint: $('warp-cockpit-hint'),
     };
 
     this.hitTimer = 0;
@@ -243,6 +245,7 @@ export class GameUI {
     click('btn-abort-cancel', () => this.hideAbortConfirm());
     click('btn-abort-confirm', () => this.callbacks.onAbortConfirm?.());
     click('btn-touch-missile', () => this.callbacks.onMissile?.());
+    click('btn-exit-flight', () => this.callbacks.onExitFlight?.());
     click('btn-touch-inspect', () => this.callbacks.onInspect?.());
     click('btn-touch-target', () => this.callbacks.onTargetStep?.(1));
     click('btn-touch-auto', () => this.callbacks.onAutopilot?.());
@@ -681,7 +684,13 @@ export class GameUI {
     setText(this.el.combatHullValue, String(Math.round(data.hull)).padStart(3, '0'));
     setText(
       this.el.combatWeaponState,
-      data.overheated ? '过热' : data.heat > 72 ? '高温' : data.firing ? '射击' : '就绪',
+      data.fireLocked || data.overheated
+        ? `冷却 ${Math.ceil(data.lockTimer || 0)}s`
+        : data.aimMode
+          ? '瞄准射击'
+          : data.firing
+            ? '射击'
+            : '就绪',
     );
     this.el.combatShieldBar?.classList.toggle('is-critical', shieldPct <= 28);
     this.el.combatHullBar?.classList.toggle('is-critical', hullPct <= 34);
@@ -712,7 +721,13 @@ export class GameUI {
     setText(this.el.coreHullValue, String(Math.round(data.hull)).padStart(3, '0'));
     setText(
       this.el.coreWeaponState,
-      data.overheated ? '过热' : data.heat > 72 ? '高温' : data.firing ? '射击' : '就绪',
+      data.fireLocked || data.overheated
+        ? `冷却 ${Math.ceil(data.lockTimer || 0)}s`
+        : data.aimMode
+          ? '瞄准'
+          : data.firing
+            ? '射击'
+            : '就绪',
     );
     setText(this.el.coreKills, String(data.kills || 0).padStart(2, '0'));
     this.el.coreStatus?.classList.toggle('is-critical', shieldPct <= 28 || hullPct <= 34);
@@ -936,6 +951,34 @@ export class GameUI {
     if (!this.el.warpFlash) return;
     this.el.warpFlash.classList.add('is-active');
     window.setTimeout(() => this.el.warpFlash.classList.remove('is-active'), 280);
+  }
+
+  setAimMode(active) {
+    const next = Boolean(active);
+    this.el.warpCockpit?.classList.toggle('is-aiming', next);
+    this.el.hud?.classList.toggle('is-aiming', next);
+    document.body.classList.toggle('is-aim-mode', next);
+    if (this.el.warpHint) {
+      this.el.warpHint.textContent = next
+        ? '左键激光 · 右键退出瞄准 · 6 秒弹链 / 16 秒冷却'
+        : '拖拽修正航向 · 松开 SHIFT 退出曲速';
+    }
+  }
+
+  returnToStart() {
+    this.setWarpCockpit(false);
+    this.setAimMode(false);
+    this.setCombatActive(false);
+    this.el.defeat?.classList.remove('is-visible');
+    this.el.hud?.classList.remove('is-live', 'is-tactical', 'is-aiming');
+    this.el.hud?.classList.add('is-hidden');
+    this.el.start?.classList.remove('is-hidden', 'is-leaving');
+    this.el.start?.classList.add('is-ready');
+    if (this.el.boot) this.el.boot.style.display = 'none';
+    this.setMode('start');
+    this.started = false;
+    if (this.el.startButton) this.el.startButton.disabled = false;
+    document.body.classList.remove('is-warp-fp', 'is-aim-mode');
   }
 
   setWarpCockpit(active) {
