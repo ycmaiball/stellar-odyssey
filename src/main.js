@@ -713,8 +713,16 @@ function updateBoot(now) {
 
   const readyToStart =
     (assetsLoaded && elapsed > 2.45 && now - assetsDoneAt > 240) ||
-    elapsed > 15.5;
-  if (readyToStart) finalizeBoot(assetsFailed > 0 || !assetsLoaded);
+    elapsed > 22;
+  if (readyToStart) {
+    /* A slow CDN is not a broken link: only real load errors may mark the
+       boot as degraded, otherwise the start screen claims assets are offline
+       when everything is still streaming in. */
+    if (!assetsLoaded && assetsFailed === 0) {
+      console.info('[stellar] boot continued while assets were still streaming');
+    }
+    finalizeBoot(assetsFailed > 0);
+  }
 }
 
 function finalizeBoot(failed) {
