@@ -128,6 +128,7 @@ let warpCockpitRig = null;
 let auth = null;
 let combat = null;
 let contracts = null;
+let progression = null;
 
 let bootStartedAt = performance.now();
 let lastFrame = 0;
@@ -179,7 +180,7 @@ const markerHiddenItems = [];
 const emptyMarkerItems = [];
 
 const ui = createUI({
-  onStart: startMission,
+  onStart: goToShipyard,
   onInspect: enterInspection,
   onExitInspect: exitInspection,
   onTargetStep: stepTarget,
@@ -204,6 +205,9 @@ const ui = createUI({
     syncCombatFiring();
   },
   onRespawn: respawnMission,
+  onAbort: requestAbort,
+  onAbortConfirm: confirmAbort,
+  onMissile: fireMissile,
 });
 
 
@@ -278,8 +282,14 @@ function applyPilot(session) {
 
 function setupAuth() {
   auth = createAuthSystem({
-    onAuthed: (session) => applyPilot(session),
-    onSignedOut: () => applyPilot(null),
+    onAuthed: (session) => {
+      applyPilot(session);
+      ensureProgression(session?.accountId || 'guest');
+    },
+    onSignedOut: () => {
+      applyPilot(null);
+      ensureProgression('guest');
+    },
   });
 
   document.getElementById('btn-signout')?.addEventListener('click', () => {
@@ -296,6 +306,68 @@ function setupAuth() {
 
   const session = auth.getSession();
   if (session) applyPilot(session);
+  ensureProgression(session?.accountId || 'guest');
+}
+
+/* ——— progression / dock economy ————————————————————————————— */
+
+function ensureProgression(accountId = 'guest') {
+  if (!window.StellarProgression) return null;
+  if (!progression || progression.accountId !== accountId) {
+    progression = window.StellarProgression.createProgression(accountId);
+  }
+  return progression;
+}
+
+function goToShipyard() {
+  window.location.href = './shipyard/';
+}
+
+function requestAbort() {
+  if (game.mode !== 'flight' || !combat) return;
+  if (ui.el?.abortScreen?.classList.contains('is-visible')) return;
+  game.keys.clear();
+  game.keyFiring = false;
+  combat.setFiring(false);
+  ui.showAbortConfirm({
+    kills: game.combatKills,
+    time: formatClock(game.elapsed),
+    hull: Math.max(0, Math.round(combat.hull)),
+    credits: progression ? progression.credits : 0,
+  });
+  audio.back();
+}
+
+function confirmAbort() {
+  ui.hideAbortConfirm();
+  boardDock('abort');
+}
+
+function boardDock(reason = 'abort') {
+  const hull = combat ? Math.max(0, Math.round(combat.hull)) : 100;
+  if (progression) {
+    progression.setHull(hull);
+    progression.save();
+  }
+  combat?.setFiring(false);
+  ui.setAbortEnabled(false);
+  ui.showToast({
+    kicker: 'DOCK LINK / 返航',
+    title: reason === 'destroyed' ? '舰体失联 · 拖曳入坞' : '返航指令已确认',
+    text: '飞船正在进入轨道船坞 · 维修账目将在靠泊后结算',
+    tone: 'warning',
+    duration: 2400,
+  });
+  ui.flashWarp();
+  audio.autopilot();
+  window.setTimeout(() => {
+    window.location.href = './shipyard/?return=1';
+  }, 1200);
+}
+
+function fireMissile() {
+  if (game.mode !== 'flight' || game.combatDefeated || !combat) return;
+  combat.fireMissile();
 }
 
 function init() {
@@ -338,6 +410,9 @@ function init() {
       },
       get contracts() {
         return contracts;
+      },
+      get progression() {
+        return progression;
       },
       get warpCockpitRig() {
         return warpCockpitRig;
@@ -559,13 +634,19 @@ function setupCombat() {
       onEnemyKilled: ({ kills, remaining, position }) => {
         game.combatKills = kills;
         contracts?.notifyKill(position);
+        if (progression) {
+          const reward = progression.recordKill();
+          ui.updateCredits(progression.credits);
+          ui.floatCredits(reward.credits);
+        }
         if (remaining === 0) ui.showAlert('敌方信号消失 · 重新扫描空域', 1800);
       },
       onEnemyHit: ({ name, killed }) => {
         ui.hitMarker(Boolean(killed));
         if (killed) ui.showKillConfirm(name || '敌对目标');
       },
-      onPlayerHit: ({ amount, shieldBroken, source }) => {
+      onPlayerHit: ({ amount, shieldBroken, source, hull }) => {
+        if (progression && Number.isFinite(hull)) progression.setHull(hull);
         const side = damageDirectionFromSource(source);
         ui.flashDamage(clamp(amount / 9, 0.4, 1.4), side);
         game.cameraShake = Math.max(game.cameraShake, clamp(amount * 0.55, 2.2, 8));
@@ -581,6 +662,7 @@ function setupCombat() {
         );
       },
       onPlayerDeath: (payload) => {
+        if (progression) progression.setHull(0);
         handlePlayerDefeat(payload);
       },
       onWeaponOverheat: () => {
@@ -603,6 +685,7 @@ function setupContracts() {
     scene,
     ship,
     audio,
+    getWallet: () => progression,
     callbacks: {
       undiscoveredPlanets: () =>
         universe ? universe.planets.filter((planet) => !game.discovered.has(planet.key)) : [],
@@ -695,6 +778,11 @@ function handlePlayerDefeat({ kills, wave, time }) {
 }
 
 function respawnMission() {
+  if (!game.combatDefeated) return;
+  boardDock('destroyed');
+}
+
+function respawnMissionLegacy() {
   if (!game.combatDefeated || !combat) return;
   resetWarpCockpit();
   game.combatDefeated = false;
@@ -865,9 +953,21 @@ function startMission() {
 
   if (combat) {
     combat.start();
+    if (progression) {
+      /* Emergency dock patch: never seed a sortie below 20% integrity. */
+      const seedHull = Math.max(20, progression.hull);
+      combat.setHull(seedHull);
+      if (seedHull !== progression.hull) progression.setHull(seedHull);
+    }
     ui.setCombatActive(true);
     ui.updateCombat(combat.getHudData());
   }
+
+  if (progression) {
+    progression.recordSortie();
+    ui.updateCredits(progression.credits);
+  }
+  ui.setAbortEnabled(true);
 
   if (contracts) {
     contracts.start({
@@ -911,6 +1011,7 @@ function enterInspection() {
   resetWarpCockpit();
   game.tacticalScan = false;
   ui.setTacticalScan(false);
+  ui.setAbortEnabled(false);
   game.mode = 'inspect';
   game.cameraMode = 'inspect';
   game.autopilot = false;
@@ -984,6 +1085,7 @@ function exitInspection() {
   ui.updatePartList(ship.parts);
   for (const part of ship.parts) ui.setDetachedState(part.id, false);
   ui.closeInspect();
+  ui.setAbortEnabled(true);
   primeChaseCamera();
 
   if (combat) {
@@ -1396,6 +1498,11 @@ function checkDiscovery() {
 
     game.discovered.add(planet.key);
     contracts?.notifyPlanet(planet.key);
+    if (progression) {
+      const reward = progression.recordSurvey();
+      ui.updateCredits(progression.credits);
+      ui.floatCredits(reward.credits);
+    }
     ui.setDiscovered([...game.discovered]);
     audio.discovery();
 
@@ -1689,6 +1796,7 @@ function updateInterface(dt) {
     updateHud();
     updateCombatHud();
     if (contracts) ui.updateContract(contracts.getHudData());
+    if (progression) ui.updateCredits(progression.credits);
   }
 
   if (markerAccum >= 0.07) {
@@ -2299,6 +2407,11 @@ function onKeyDown(event) {
   }
   if (code === 'Escape') {
     game.keys.clear();
+    requestAbort();
+    return;
+  }
+  if (code === 'KeyR') {
+    fireMissile();
     return;
   }
 

@@ -9,6 +9,14 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 const PLAYER_MAX_SHIELD = 100;
 const PLAYER_MAX_HULL = 100;
+const MISSILE_MAX = 4;
+const MISSILE_COOLDOWN = 3.2;
+const MISSILE_SPEED = 1250;
+const MISSILE_MAX_SPEED = 2100;
+const MISSILE_TURN = 3.4;
+const MISSILE_LIFE = 6.5;
+const MISSILE_DAMAGE = 38;
+
 const PLAYER_FIRE_INTERVAL = 0.18;
 const PLAYER_HEAT_PER_SHOT = 5.2;
 const PLAYER_COOL_RATE = 17;
@@ -79,6 +87,7 @@ export class CombatSystem {
     this.kills = 0;
     this.enemies = [];
     this.projectiles = [];
+    this.missiles = [];
     this.effects = [];
     this.nextEnemyId = 1;
     this.firing = false;
@@ -98,6 +107,9 @@ export class CombatSystem {
       fireTimer: 0,
       lastHitAt: -100,
       kills: 0,
+      missiles: MISSILE_MAX,
+      missileMax: MISSILE_MAX,
+      missileTimer: 0,
     };
 
     this.glowTexture = createGlowTexture('rgba(255,255,255,1)');
@@ -329,6 +341,7 @@ export class CombatSystem {
 
   setActive(active) {
     this.active = Boolean(active);
+    for (const missile of this.missiles) missile.group.visible = this.active;
     if (!this.active) {
       this.firing = false;
       this.target = null;
@@ -506,6 +519,122 @@ export class CombatSystem {
     }
     this._playTone(980, 310, 0.09, 0.022, 'square');
     this.callbacks.onPlayerFire?.(target);
+  }
+
+  fireMissile() {
+    if (!this.active || this.defeated) return false;
+    if (this.player.missiles <= 0) {
+      this.callbacks.onMissileEmpty?.();
+      return false;
+    }
+    if (this.player.missileTimer > 0) return false;
+    this.player.missiles -= 1;
+    this.player.missileTimer = MISSILE_COOLDOWN;
+
+    const playerPos = this.ship.root.position;
+    const forward = _v1.set(0, 0, -1).applyQuaternion(this.ship.root.quaternion);
+    const target = this._acquireTarget(forward, playerPos);
+    const side = this.player.missiles % 2 === 0 ? -1 : 1;
+    const origin = new THREE.Vector3(9.8 * side, 0.1, -4.6).applyMatrix4(
+      this.ship.root.matrixWorld,
+    );
+
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.26, 0.34, 2.4, 6),
+      new THREE.MeshStandardMaterial({ color: 0xdfe8ea, metalness: 0.7, roughness: 0.34 }),
+    );
+    body.rotation.x = Math.PI / 2;
+    const glow = glowSprite(this.glowTexture, 0x8be9ff, 1.4, 0.85);
+    glow.position.z = 1.35;
+    const plume = new THREE.Mesh(
+      new THREE.ConeGeometry(0.24, 1.3, 6, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0x9ff4ff,
+        transparent: true,
+        opacity: 0.7,
+        toneMapped: false,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
+    plume.rotation.x = -Math.PI / 2;
+    plume.position.z = 1.9;
+    group.add(body, glow, plume);
+    group.position.copy(origin);
+    const direction = target
+      ? _v2.copy(target.group.position).sub(origin).normalize()
+      : forward.clone();
+    group.quaternion.setFromUnitVectors(FORWARD, direction);
+    this.scene.add(group);
+
+    this.missiles.push({
+      group,
+      velocity: direction.clone().multiplyScalar(MISSILE_SPEED),
+      target,
+      life: MISSILE_LIFE,
+      trailTimer: 0,
+      plume,
+    });
+
+    this._playTone(180, 620, 0.32, 0.028, 'sawtooth');
+    this.callbacks.onMissile?.({ target, remaining: this.player.missiles });
+    return true;
+  }
+
+  _updateMissiles(dt) {
+    for (let i = this.missiles.length - 1; i >= 0; i -= 1) {
+      const missile = this.missiles[i];
+      if (!missile) {
+        this.missiles.splice(i, 1);
+        continue;
+      }
+      missile.life -= dt;
+      missile.trailTimer -= dt;
+
+      const target = missile.target;
+      if (target && !target.dead) {
+        const desired = _v1.copy(target.group.position).sub(missile.group.position);
+        const distance = desired.length();
+        if (distance > 0.01) {
+          desired.normalize();
+          const speed = missile.velocity.length();
+          const current = _v2.copy(missile.velocity).normalize();
+          current.lerp(desired, Math.min(1, MISSILE_TURN * dt)).normalize();
+          missile.velocity.copy(current).multiplyScalar(
+            Math.min(MISSILE_MAX_SPEED, speed + 520 * dt),
+          );
+          missile.group.quaternion.setFromUnitVectors(FORWARD, current);
+        }
+        if (distance < 26) {
+          this._spawnHit(missile.group.position, 0xffbe78, 2.2);
+          this._damageEnemy(target, MISSILE_DAMAGE, target.group.position);
+          this._spawnBurst(missile.group.position, 0xffbe78, 14);
+          this._playTone(140, 40, 0.28, 0.04, 'square');
+          this.scene.remove(missile.group);
+          this.missiles.splice(i, 1);
+          continue;
+        }
+      }
+
+      missile.group.position.addScaledVector(missile.velocity, dt);
+      missile.plume.material.opacity = 0.55 + Math.sin(this.time * 24 + i) * 0.2;
+      if (missile.trailTimer <= 0) {
+        missile.trailTimer = 0.035;
+        this._spawnMuzzle(missile.group.position, 0x6fd8ff);
+      }
+
+      if (missile.life <= 0) {
+        this._spawnBurst(missile.group.position, 0xffbe78, 10);
+        this.scene.remove(missile.group);
+        this.missiles.splice(i, 1);
+      }
+    }
+  }
+
+  setHull(value) {
+    this.player.hull = Math.max(0, Math.min(this.player.hullMax, Number(value) || 0));
+    return this.player.hull;
   }
 
   _spawnBeam(from, to, color, width) {
@@ -782,6 +911,7 @@ export class CombatSystem {
       this.player.heat = Math.max(0, this.player.heat - cooling * dt);
     }
 
+    this.player.missileTimer = Math.max(0, this.player.missileTimer - dt);
     this.player.fireTimer -= dt;
     if (this.firing && this.player.fireTimer <= 0) {
       this._fire();
@@ -797,6 +927,7 @@ export class CombatSystem {
 
     this._updateEnemies(dt, playerPos, forward);
     this._updateProjectiles(dt, playerPos);
+    this._updateMissiles(dt);
     this._updateEffects(dt);
     this._acquireTarget(forward, playerPos);
   }
@@ -870,6 +1001,10 @@ export class CombatSystem {
   _updateProjectiles(dt, playerPos) {
     for (let i = this.projectiles.length - 1; i >= 0; i -= 1) {
       const projectile = this.projectiles[i];
+      if (!projectile) {
+        this.projectiles.splice(i, 1);
+        continue;
+      }
       projectile.life -= dt;
       projectile.mesh.position.addScaledVector(projectile.velocity, dt);
       const hit = projectile.mesh.position.distanceTo(playerPos) < 27;
@@ -887,6 +1022,10 @@ export class CombatSystem {
   _updateEffects(dt) {
     for (let i = this.effects.length - 1; i >= 0; i -= 1) {
       const effect = this.effects[i];
+      if (!effect) {
+        this.effects.splice(i, 1);
+        continue;
+      }
       effect.life -= dt;
       const progress = 1 - Math.max(0, effect.life) / effect.maxLife;
 
@@ -938,6 +1077,9 @@ export class CombatSystem {
         : null,
       nextWaveIn:
         this.spawnAt === Infinity ? null : Math.max(0, this.spawnAt - this.time),
+      missiles: this.player.missiles,
+      missileMax: this.player.missileMax,
+      missileTimer: this.player.missileTimer,
     };
   }
 

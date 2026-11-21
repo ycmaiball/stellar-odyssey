@@ -67,6 +67,60 @@
   const CATEGORY_BY_ID = new Map(CATEGORIES.map((category) => [category.id, category]));
 
   /* ------------------------------------------------------------------ */
+  /* 1b. PROGRESSION — credits, unlocks, hull integrity                   */
+  /* ------------------------------------------------------------------ */
+
+  const Progression = window.StellarProgression;
+  const PRICES = (Progression && Progression.PRICES) || {};
+
+  function currentAccountId() {
+    try {
+      const raw = window.localStorage.getItem('stellar_odyssey:session:v1');
+      if (!raw) return 'guest';
+      const session = JSON.parse(raw);
+      return (session && session.accountId) || 'guest';
+    } catch (error) {
+      return 'guest';
+    }
+  }
+
+  let progression = null;
+  function profile() {
+    if (!progression && Progression) {
+      progression = Progression.createProgression(currentAccountId());
+    }
+    return progression;
+  }
+
+  function isUnlocked(partId) {
+    const p = profile();
+    return p ? p.isUnlocked(partId) : true;
+  }
+
+  function priceOf(partId) {
+    const p = profile();
+    if (p) return p.price(partId);
+    return PRICES[partId];
+  }
+
+  function formatCredits(value) {
+    return Math.round(Number(value) || 0).toLocaleString('en-US');
+  }
+
+  function updateCreditsChip() {
+    const p = profile();
+    const value = $('#yard-credits-value');
+    const hull = $('#yard-hull-value');
+    if (!p) return;
+    if (value) value.textContent = formatCredits(p.credits);
+    if (hull) {
+      hull.textContent = `${Math.round(p.hull)}%`;
+      hull.classList.toggle('is-critical', p.hull <= 35);
+      hull.classList.toggle('is-damaged', p.hull <= 70);
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* 2. PARTS — the whole parts catalogue lives in this array            */
   /* ------------------------------------------------------------------ */
 
@@ -494,9 +548,8 @@
   function loadBuildsFromStorage() {
     const stored = readJSON(STORAGE.builds, null);
     if (stored === null) {
-      const samples = createSampleBuilds();
-      writeJSON(STORAGE.builds, samples);
-      return samples;
+      writeJSON(STORAGE.builds, []);
+      return [];
     }
     if (!Array.isArray(stored)) return [];
     return stored
@@ -886,7 +939,10 @@
 
   function partCardMarkup(part) {
     const isHull = part.category === 'hull';
-    return `<div class="part-card" role="button" tabindex="0" draggable="false" data-part-id="${part.id}" data-category="${part.category}" aria-label="装配 ${escapeHTML(part.name)}">
+    const unlocked = isUnlocked(part.id);
+    const price = priceOf(part.id) || 0;
+    const priceLabel = unlocked ? '已解锁' : `锁定 · ${formatCredits(price)} CR`;
+    return `<div class="part-card${unlocked ? '' : ' is-locked'}" role="button" tabindex="0" draggable="false" data-part-id="${part.id}" data-category="${part.category}" data-locked="${unlocked ? '0' : '1'}" aria-label="${unlocked ? '装配' : '解锁'} ${escapeHTML(part.name)}">
       <div class="part-thumb">${partSvg(part)}</div>
       <div class="part-info">
         <div class="part-title-row"><span class="part-title">${escapeHTML(part.name)}</span><span class="part-mk">${escapeHTML(part.mk || '')}</span></div>
@@ -897,6 +953,7 @@
           <span><i>耗</i><b>${part.energy}</b></span>
         </div>
       </div>
+      <span class="part-price${unlocked ? ' is-owned' : ''}">${priceLabel}</span>
       ${isHull && state.hullId === part.id ? '<span class="part-current">CURRENT</span>' : ''}
     </div>`;
   }
@@ -910,7 +967,7 @@
         <summary>
           <span class="category-glyph">${category.glyph}</span>
           <span class="category-label">${category.label}</span>
-          <span class="category-count">${parts.length} / ${category.en}</span>
+          <span class="category-count">${parts.filter((item) => isUnlocked(item.id)).length} / ${parts.length}</span>
         </summary>
         <div class="part-grid">${parts.map(partCardMarkup).join('')}</div>
       </details>`;
@@ -918,7 +975,8 @@
     const partCount = $('#part-count');
     if (partCount) partCount.textContent = `${PARTS.length} PARTS`;
     const libraryFoot = $('.library-foot');
-    if (libraryFoot) libraryFoot.firstElementChild.textContent = `7 大类 / ${PARTS.length} 个零件`;
+    if (libraryFoot) libraryFoot.firstElementChild.textContent = `已解锁 ${PARTS.filter((item) => isUnlocked(item.id)).length} / ${PARTS.length} 个零件`;
+    updateCreditsChip();
   }
 
   function slotMarkup(slot, index) {
@@ -1230,6 +1288,7 @@
   function installPart(partId) {
     const part = PART_BY_ID.get(partId);
     if (!part) return;
+    if (!isUnlocked(part.id)) { openUnlock(part.id); return; }
     if (part.category === 'hull') {
       if (state.hullId === part.id) {
         showToast('这已经是当前船体。', 'warning');
@@ -1268,6 +1327,7 @@
       showToast('这个零件不能装进该槽位。', 'warning');
       return;
     }
+    if (!isUnlocked(part.id)) { openUnlock(part.id); return; }
     if (partInSlot(state, slotId)?.id === part.id) {
       showToast('这个零件已经在该槽位。', 'warning');
       return;
@@ -1305,10 +1365,15 @@
       <div class="modal-body">
         <p class="modal-copy">${current ? `当前：${escapeHTML(current.name)}。选择一个零件替换，或移除当前零件。` : '选择一个兼容零件装入该槽位。'}</p>
         <div class="picker-grid">
-          ${parts.map((part) => `<button type="button" class="picker-part${current && current.id === part.id ? ' is-current' : ''}" data-pick-id="${part.id}">
+          ${parts.map((part) => {
+            const unlocked = isUnlocked(part.id);
+            const price = priceOf(part.id) || 0;
+            return `<button type="button" class="picker-part${current && current.id === part.id ? ' is-current' : ''}${unlocked ? '' : ' is-locked'}" data-pick-id="${part.id}" data-locked="${unlocked ? '0' : '1'}">
             <span class="picker-thumb">${partSvg(part)}</span>
             <span class="picker-copy"><span class="picker-name">${escapeHTML(part.name)}</span><span class="picker-stats">推 ${part.thrust} · 防 ${part.defense} · 耗 ${part.energy} · WT ${part.weight.toFixed(1)}</span></span>
-          </button>`).join('') || '<div class="picker-empty">这个槽位暂无可用零件。</div>'}
+            <span class="picker-price">${unlocked ? '已解锁' : `${formatCredits(price)} CR`}</span>
+          </button>`;
+          }).join('') || '<div class="picker-empty">这个槽位暂无可用零件。</div>'}
         </div>
       </div>
       <div class="modal-foot">
@@ -1323,6 +1388,7 @@
       button.addEventListener('click', () => {
         const partId = button.dataset.pickId;
         close(null);
+        if (!isUnlocked(partId)) { openUnlock(partId); return; }
         installIntoSlot(slotId, partId);
       });
     });
@@ -1600,6 +1666,135 @@
       || DECOR_SLOTS.some((slot) => Boolean(partInSlot(state, slot.id)));
   }
 
+  const STARTER_KIT = {
+    'engine-0': 'engine-ion', 'engine-1': 'engine-ion',
+    'shield-0': 'shield-deflector', 'shield-1': 'shield-deflector',
+    'weapon-0': 'weapon-pulse', 'weapon-1': 'weapon-pulse',
+    cockpit: 'cockpit-solo', tail: 'tail-vector',
+  };
+
+  function applyStarterKit() {
+    state.hullId = CONFIG.defaultHull;
+    state.slots = emptySlots();
+    Object.entries(STARTER_KIT).forEach(([slotId, partId]) => {
+      if (SLOT_BY_ID.has(slotId)) state.slots[slotId] = partId;
+    });
+  }
+
+  function stripLockedParts() {
+    let changed = false;
+    CORE_SLOTS.concat(DECOR_SLOTS).forEach((slot) => {
+      const partId = state.slots[slot.id];
+      if (partId && !isUnlocked(partId)) {
+        state.slots[slot.id] = null;
+        changed = true;
+      }
+    });
+    if (!isUnlocked(state.hullId)) {
+      state.hullId = CONFIG.defaultHull;
+      changed = true;
+    }
+    return changed;
+  }
+
+  function openUnlock(partId) {
+    const part = PART_BY_ID.get(partId);
+    const p = profile();
+    if (!part || !p) return;
+    const price = priceOf(partId) || 0;
+    const affordable = p.credits >= price;
+    let close = null;
+    close = showModal(`<div class="modal-card unlock-card">
+      <div class="modal-head">
+        <div><span class="kicker">RESEARCH UNLOCK / ${escapeHTML(part.en)}</span><h2>解锁 ${escapeHTML(part.name)}</h2></div>
+        <button type="button" class="icon-btn" data-modal-close aria-label="关闭">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-copy">${escapeHTML(part.description || '')}</p>
+        <div class="unlock-rows">
+          <div><span>解锁价格</span><b>${formatCredits(price)} CR</b></div>
+          <div><span>当前积分</span><b>${formatCredits(p.credits)} CR</b></div>
+          <div><span>解锁后余额</span><b>${formatCredits(Math.max(0, p.credits - price))} CR</b></div>
+        </div>
+        <p class="modal-copy modal-copy--hint">解锁后永久有效，可在任意装配方案中使用。积分来自巡航：击毁敌机、勘测星球与合约结算。</p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-modal-close>再想想</button>
+        <button id="unlock-ok" type="button" class="btn btn-primary" ${affordable ? '' : 'disabled'}>${affordable ? `解锁 · ${formatCredits(price)} CR` : '积分不足'}</button>
+      </div>
+    </div>`);
+    const ok = $('#unlock-ok');
+    if (ok && !ok.disabled) {
+      ok.addEventListener('click', () => {
+        const result = p.unlock(partId);
+        if (!result.ok) {
+          showToast(result.reason === 'INSUFFICIENT_CREDITS' ? '积分不足，先去完成一次巡航。' : '解锁失败，请重试。', 'warning');
+          return;
+        }
+        close(null);
+        updateCreditsChip();
+        renderLibrary();
+        renderAll(true);
+        showToast(`${part.name} 已解锁，可直接装配。`);
+      });
+    }
+  }
+
+  function maybeOpenRepair() {
+    const overlay = $('#repair-overlay');
+    if (!overlay) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('return') !== '1') return;
+    const p = profile();
+    if (!p) return;
+    const copy = $('#repair-copy');
+    const hullValue = $('#repair-hull');
+    const creditsValue = $('#repair-credits');
+    const costValue = $('#repair-cost');
+    const meter = $('#repair-meter-fill');
+    const full = $('#btn-repair-full');
+    const partial = $('#btn-repair-partial');
+    const skip = $('#btn-repair-skip');
+    const refresh = () => {
+      const cost = p.repairCost();
+      if (copy) copy.textContent = p.hull >= 100 ? '舰体完整，船坞已完成例行检查。' : '巡航结束，舰体存在结构损伤。维修需要消耗积分，也可以选择带伤出航。';
+      if (hullValue) hullValue.textContent = `${Math.round(p.hull)}%`;
+      if (creditsValue) creditsValue.textContent = `${formatCredits(p.credits)} CR`;
+      if (costValue) costValue.textContent = `${formatCredits(cost)} CR`;
+      if (meter) meter.style.width = `${Math.max(0, Math.min(100, p.hull))}%`;
+      if (full) { full.disabled = p.credits < cost || p.hull >= 100; full.textContent = p.hull >= 100 ? '无需修复' : `全额修复 · ${formatCredits(cost)} CR`; }
+      if (partial) { partial.disabled = p.hull >= 100; partial.textContent = `部分修复 · ${formatCredits(Math.max(40, Math.round(cost * 0.55)))} CR`; }
+      if (skip) skip.disabled = p.hull >= 100;
+    };
+    const close = (silent) => {
+      overlay.classList.add('is-hidden');
+      window.history.replaceState({}, '', window.location.pathname);
+      if (!silent) updateCreditsChip();
+    };
+    refresh();
+    overlay.classList.remove('is-hidden');
+    if (full) full.onclick = () => {
+      const result = p.repair('full');
+      if (!result.ok) { showToast('积分不足，可选择部分修复或带伤出航。', 'warning'); return; }
+      showToast(result.cost ? `修复完成，扣除 ${formatCredits(result.cost)} CR。` : '舰体无需修复。');
+      refresh();
+      updateCreditsChip();
+      if (p.hull >= 100) setTimeout(() => close(false), 420);
+    };
+    if (partial) partial.onclick = () => {
+      const result = p.repair('partial');
+      if (!result.ok) { showToast('积分不足。', 'warning'); return; }
+      showToast(`部分修复完成，扣除 ${formatCredits(result.cost)} CR，舰体 ${Math.round(result.hull)}%。`);
+      refresh();
+      updateCreditsChip();
+    };
+    if (skip) skip.onclick = () => {
+      p.repair('skip');
+      showToast('已记录带伤出航，下一次巡航将继承当前舰体完整度。');
+      close(false);
+    };
+  }
+
   function setStateBlank() {
     state = {
       hullId: CONFIG.defaultHull,
@@ -1620,9 +1815,12 @@
       if (!confirmed) return;
     }
     setStateBlank();
+    applyStarterKit();
+    state.name = '新装配方案';
+    currentName = state.name;
     renderAll();
     closeDrawer();
-    showToast('新装配台已就绪。选择船体开始。');
+    showToast('新装配台已就绪，已装载首发基础套件。');
   }
 
   function pickRandom(items) {
@@ -1636,15 +1834,15 @@
   }
 
   function randomizeBuild() {
-    const hulls = PARTS_BY_CATEGORY.get('hull') || [];
+    const hulls = (PARTS_BY_CATEGORY.get('hull') || []).filter((part) => isUnlocked(part.id));
     const slots = emptySlots();
-    const hull = pickRandom(hulls);
+    const hull = pickRandom(hulls) || PART_BY_ID.get(CONFIG.defaultHull);
     CORE_SLOTS.forEach((slot) => {
-      const options = PARTS_BY_CATEGORY.get(slot.category) || [];
+      const options = (PARTS_BY_CATEGORY.get(slot.category) || []).filter((part) => isUnlocked(part.id));
       if (options.length) slots[slot.id] = pickRandom(options).id;
     });
-    const decor = PARTS_BY_CATEGORY.get('decor') || [];
-    const decorCount = 3 + Math.floor(Math.random() * Math.min(15, DECOR_SLOTS.length - 2));
+    const decor = (PARTS_BY_CATEGORY.get('decor') || []).filter((part) => isUnlocked(part.id));
+    const decorCount = decor.length ? 3 + Math.floor(Math.random() * Math.min(15, DECOR_SLOTS.length - 2)) : 0;
     DECOR_SLOTS.slice(0, decorCount).forEach((slot) => {
       if (decor.length) slots[slot.id] = pickRandom(decor).id;
     });
@@ -2434,6 +2632,11 @@
 
   function startLaunch() {
     if (launchActive) return;
+    const readiness = computeStats(state);
+    if (readiness.emptyCore > 0) {
+      showToast(`还有 ${readiness.emptyCore} 个核心槽位为空，装满 8 个核心槽才能起飞。`, 'warning');
+      return;
+    }
     statsCache = computeStats(state);
     const stats = statsCache;
     const overlay = $('#launch-overlay');
@@ -2731,13 +2934,15 @@
     if (draft) {
       const draftIsSaved = builds.some((build) => build.id === draft.id);
       adoptBuild(draft, draftIsSaved);
-    } else if (builds.length) {
-      adoptBuild(builds[0], false);
-      currentName = builds[0].name;
-      state.name = currentName;
-      saveDraft();
+      if (stripLockedParts()) {
+        showToast('部分零件的解锁状态已变更，已从当前方案中卸下。', 'warning');
+      }
     } else {
       setStateBlank();
+      applyStarterKit();
+      state.name = '首发装配';
+      currentName = state.name;
+      saveDraft();
     }
     renderLibrary();
     renderAll(false);
@@ -2745,7 +2950,9 @@
     setupLibraryRail();
     createStarfield();
     updateHangarCount();
+    updateCreditsChip();
     syncBodyLock();
+    maybeOpenRepair();
     if (!storageOK) {
       showToast('当前浏览器无法写入 localStorage，方案只会在本次会话中保留。', 'warning');
     }

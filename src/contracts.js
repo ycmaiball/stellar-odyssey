@@ -75,7 +75,8 @@ function writeJson(key, value) {
 }
 
 export class ContractSystem {
-  constructor({ scene, ship, audio, callbacks = {} } = {}) {
+  constructor({ scene, ship, audio, callbacks = {}, getWallet = null } = {}) {
+    this.getWallet = getWallet;
     this.scene = scene;
     this.ship = ship;
     this.audio = audio;
@@ -230,8 +231,16 @@ export class ContractSystem {
   completeActive(silent = false) {
     const active = this.state.active;
     if (!active) return null;
-    this.state.credits += active.reward;
-    this.state.xp += active.xp;
+    const wallet = this.getWallet ? this.getWallet() : null;
+    if (wallet) {
+      wallet.addCredits(active.reward);
+      wallet.addXp(active.xp);
+      this.state.credits = wallet.credits;
+      this.state.xp = wallet.xp;
+    } else {
+      this.state.credits += active.reward;
+      this.state.xp += active.xp;
+    }
     this.state.completed += 1;
     this.state.active = null;
     this.state.pendingAt = this.time + NEXT_DELAY;

@@ -240,8 +240,8 @@
         <div class="start-actions">
           <button id="btn-start" type="button" class="cta-button" disabled>
             <span class="cta-button__index">01</span>
-            <span class="cta-button__label">启动跃迁引擎</span>
-            <span class="cta-button__en">INITIATE LAUNCH</span>
+            <span class="cta-button__label">前往装配台</span>
+            <span class="cta-button__en">OPEN ASSEMBLY BAY</span>
             <span class="cta-button__arrow">→</span>
           </button>
           <div id="start-ready-note" class="start-ready-note">
@@ -254,6 +254,8 @@
           <div><kbd>拖拽</kbd><span>转向</span></div>
           <div><kbd>W / S</kbd><span>推力</span></div>
           <div><kbd>SHIFT</kbd><span>跃迁</span></div>
+          <div><kbd>SPACE</kbd><span>激光</span></div>
+          <div><kbd>R</kbd><span>导弹</span></div>
           <div><kbd>X</kbd><span>结构分解</span></div>
           <div><kbd>F</kbd><span>自动导航</span></div>
         </div>
@@ -293,6 +295,11 @@
         </div>
 
         <div class="hud-top-actions">
+          <div id="hud-credits" class="hud-credits" title="任务积分">
+            <span class="hud-credits__kicker">CREDITS</span>
+            <b id="hud-credits-value">300</b><span class="hud-credits__unit">CR</span>
+            <span id="hud-credit-floaters" class="hud-credits__floaters" aria-hidden="true"></span>
+          </div>
           <button id="btn-sound" type="button" class="hud-icon-button" aria-label="静音">
             <span class="hud-icon-button__glyph" id="sound-glyph">◖</span>
             <span class="hud-icon-button__label">AUDIO</span>
@@ -530,6 +537,11 @@
           <span id="combat-enemy-count">0 个敌对信号</span>
           <span class="combat-contact__hint"><kbd>SPACE</kbd> 开火</span>
         </div>
+        <div class="combat-missiles">
+          <span class="combat-missiles__label">追踪导弹 / MISSILE</span>
+          <span id="missile-pips" class="missile-pips"><i></i><i></i><i></i><i></i></span>
+          <span id="missile-state" class="combat-missiles__state"><kbd>R</kbd> 发射</span>
+        </div>
       </aside>
 
       <div id="flight-hints" class="flight-hints" aria-label="操作提示">
@@ -568,6 +580,12 @@
         <span id="hud-clock">T+ 00:00:00</span>
         <span>太阳系 · 猎户臂</span>
       </div>
+
+      <button id="btn-abort" type="button" class="abort-button" aria-label="终止航行并返航">
+        <span class="abort-button__icon" aria-hidden="true">◀</span>
+        <span class="abort-button__label">终止航行</span>
+        <span class="abort-button__en">ABORT CRUISE</span>
+      </button>
     </div>
 
     <!-- ── touch controls ───────────────────────────────────── -->
@@ -576,6 +594,7 @@
       <button id="btn-touch-target" type="button" class="touch-button touch-button--small">目标</button>
       <button id="btn-touch-auto" type="button" class="touch-button touch-button--small">自动</button>
       <button id="btn-touch-fire" type="button" class="touch-button touch-button--fire">开火</button>
+      <button id="btn-touch-missile" type="button" class="touch-button touch-button--missile">导弹</button>
       <button id="btn-touch-warp" type="button" class="touch-button touch-button--warp">跃迁</button>
       <button id="btn-touch-thrust" type="button" class="touch-button touch-button--thrust">推进</button>
     </div>
@@ -678,6 +697,24 @@
       </div>
     </section>
 
+    <section id="abort-screen" class="abort-screen is-hidden" aria-label="终止航行确认">
+      <div class="abort-card">
+        <span class="kicker">CRUISE CONTROL / RETURN TO DOCK</span>
+        <h2>终止本次航行？</h2>
+        <p class="abort-copy">返航将结束当前巡航，飞船会自动进入船坞，并在回港后结算检修费用。已获得的积分会保留。</p>
+        <div class="abort-rows">
+          <div><span>本次击毁</span><b id="abort-kills">00</b></div>
+          <div><span>航行时间</span><b id="abort-time">00:00</b></div>
+          <div><span>舰体完整度</span><b id="abort-hull">100%</b></div>
+          <div><span>积分余额</span><b id="abort-credits">300 CR</b></div>
+        </div>
+        <div class="abort-actions">
+          <button id="btn-abort-cancel" type="button" class="btn btn-ghost">继续巡航</button>
+          <button id="btn-abort-confirm" type="button" class="btn btn-primary">返航 · 进入船坞</button>
+        </div>
+      </div>
+    </section>
+
     <section id="defeat-screen" class="defeat-screen is-hidden" aria-label="舰体失联">
       <div class="defeat-frame">
         <span class="defeat-kicker">SIGNAL LOST / HULL BREACH</span>
@@ -689,10 +726,10 @@
           <div><span id="defeat-time">00:00</span><span>战斗用时</span></div>
         </div>
         <button id="btn-respawn" type="button" class="cta-button cta-button--compact">
-          <span class="cta-button__label">重新部署</span>
+          <span class="cta-button__label">返回船坞维修</span>
           <span class="cta-button__arrow">→</span>
         </button>
-        <span class="defeat-credit">战斗数据将在重新部署后清除</span>
+        <span class="defeat-credit">维修与结算将在靠泊后进行</span>
       </div>
     </section>
 
@@ -726,6 +763,7 @@
       }
     }
   </script>
+  <script src="./src/progression.js"></script>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

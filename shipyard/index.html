@@ -41,6 +41,11 @@
       </div>
       <p class="topbar-tagline">挑零件，装飞船，看它能跑多快</p>
       <nav class="topbar-actions" aria-label="装配台操作">
+        <div class="yard-wallet" title="任务积分 / 累计可用余额">
+          <span class="yard-wallet__kicker">CREDITS</span>
+          <b id="yard-credits-value">300</b><span class="yard-wallet__unit">CR</span>
+          <span class="yard-wallet__hull">舰体 <b id="yard-hull-value">100%</b></span>
+        </div>
         <button id="btn-new" type="button" class="btn btn-ghost">开始装配</button>
         <button id="btn-hangar" type="button" class="btn btn-ghost">我的飞船 <span id="hangar-count" class="btn-count">0</span></button>
         <button id="btn-random" type="button" class="btn btn-primary">随机一架</button>
@@ -282,8 +287,8 @@
     </main>
 
     <footer class="page-footer">
-      <span>NX-SHIPYARD · 62 SLOTS · 3 SAMPLE LOADOUTS ON FIRST RUN</span>
-      <span class="page-footer__note">出击仅通过“光速启动”</span>
+      <span>NX-SHIPYARD · 62 SLOTS · 积分解锁 · 回港检修</span>
+      <span class="page-footer__note">首次出击装载基础套件</span>
       <span>LOCAL SAVE / NO SERVER</span>
     </footer>
   </div>
@@ -313,6 +318,26 @@
 
   <div id="modal-layer" class="modal-layer" aria-hidden="true"></div>
 
+  <section id="repair-overlay" class="repair-overlay is-hidden" aria-hidden="true" aria-label="回港检修">
+    <div class="repair-card">
+      <span class="kicker">DOCKING REPORT / HULL INTEGRITY</span>
+      <h2>回港检修</h2>
+      <p id="repair-copy" class="repair-copy">巡航结束，舰体存在结构损伤。</p>
+      <div class="repair-meter"><span id="repair-meter-fill"></span></div>
+      <div class="repair-rows">
+        <div><span>舰体完整度</span><b id="repair-hull">100%</b></div>
+        <div><span>积分余额</span><b id="repair-credits">300 CR</b></div>
+        <div><span>全额修复</span><b id="repair-cost">40 CR</b></div>
+      </div>
+      <div class="repair-actions">
+        <button id="btn-repair-full" type="button" class="btn btn-primary">全额修复</button>
+        <button id="btn-repair-partial" type="button" class="btn btn-ghost">部分修复 +50</button>
+        <button id="btn-repair-skip" type="button" class="btn btn-ghost">带伤出航</button>
+      </div>
+      <p class="repair-note">维修会消耗积分；选择带伤出航则下一次巡航沿用当前舰体完整度。</p>
+    </div>
+  </section>
+
   <div id="launch-overlay" class="launch-overlay" aria-hidden="true">
     <div id="launch-streaks" class="launch-streaks" aria-hidden="true"></div>
     <div class="launch-warp" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -336,6 +361,7 @@
     </div>
   </div>
 
+  <script src="../src/progression.js"></script>
   <script src="./app.js"></script>
   <script type="module" src="./scene3d.js"></script>
 </body>

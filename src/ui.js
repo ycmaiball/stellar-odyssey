@@ -181,6 +181,16 @@ export class GameUI {
       coreHullBar: document.querySelector('.core-bar--hull'),
       coreHeatBar: document.querySelector('.core-bar--heat'),
       flightHints: $('flight-hints'),
+      hudCredits: $('hud-credits-value'),
+      creditFloaters: $('hud-credit-floaters'),
+      abortButton: $('btn-abort'),
+      abortScreen: $('abort-screen'),
+      abortKills: $('abort-kills'),
+      abortTime: $('abort-time'),
+      abortHull: $('abort-hull'),
+      abortCredits: $('abort-credits'),
+      missilePips: $('missile-pips'),
+      missileState: $('missile-state'),
     };
 
     this.hitTimer = 0;
@@ -229,6 +239,10 @@ export class GameUI {
     click('btn-reset', () => this.callbacks.onReset?.());
     click('btn-continue', () => this.callbacks.onContinue?.());
     click('btn-respawn', () => this.callbacks.onRespawn?.());
+    click('btn-abort', () => this.callbacks.onAbort?.());
+    click('btn-abort-cancel', () => this.hideAbortConfirm());
+    click('btn-abort-confirm', () => this.callbacks.onAbortConfirm?.());
+    click('btn-touch-missile', () => this.callbacks.onMissile?.());
     click('btn-touch-inspect', () => this.callbacks.onInspect?.());
     click('btn-touch-target', () => this.callbacks.onTargetStep?.(1));
     click('btn-touch-auto', () => this.callbacks.onAutopilot?.());
@@ -672,6 +686,7 @@ export class GameUI {
     this.el.combatShieldBar?.classList.toggle('is-critical', shieldPct <= 28);
     this.el.combatHullBar?.classList.toggle('is-critical', hullPct <= 34);
     this.el.combatPanel?.classList.toggle('is-overheated', data.overheated);
+    this.updateMissiles(data);
 
     if (data.targetName) {
       setText(this.el.combatTarget, `${data.targetName} · LOCKED`);
@@ -705,6 +720,64 @@ export class GameUI {
     this.el.coreHullBar?.classList.toggle('is-critical', hullPct <= 34);
     this.el.coreHeatBar?.classList.toggle('is-hot', data.heat > 72 && !data.overheated);
     this.el.coreHeatBar?.classList.toggle('is-overheated', Boolean(data.overheated));
+  }
+
+  updateCredits(value, delta = null) {
+    setText(this.el.hudCredits, Math.round(Number(value) || 0).toLocaleString('en-US'));
+    if (Number.isFinite(delta) && delta !== 0) this.floatCredits(delta);
+  }
+
+  floatCredits(amount) {
+    const layer = this.el.creditFloaters;
+    if (!layer) return;
+    const floater = document.createElement('span');
+    floater.className = `credit-floater${amount >= 0 ? ' is-gain' : ' is-loss'}`;
+    floater.textContent = `${amount >= 0 ? '+' : '−'}${Math.abs(Math.round(amount))} CR`;
+    layer.append(floater);
+    window.setTimeout(() => floater.remove(), 1600);
+  }
+
+  updateMissiles(data) {
+    if (!this.el.missilePips) return;
+    const max = data.missileMax || 4;
+    const left = data.missiles == null ? max : data.missiles;
+    const pips = this.el.missilePips.children;
+    for (let i = 0; i < pips.length; i += 1) {
+      pips[i].classList.toggle('is-empty', i >= left);
+    }
+    const cooling = (data.missileTimer || 0) > 0;
+    if (this.el.missileState) {
+      this.el.missileState.innerHTML = cooling
+        ? `装填 ${(data.missileTimer || 0).toFixed(1)}s`
+        : left > 0
+          ? '<kbd>R</kbd> 发射'
+          : '弹药耗尽';
+    }
+  }
+
+  showAbortConfirm(data = {}) {
+    const screen = this.el.abortScreen;
+    if (!screen) return;
+    setText(this.el.abortKills, String(data.kills || 0).padStart(2, '0'));
+    setText(this.el.abortTime, data.time || '00:00');
+    setText(this.el.abortHull, `${Math.round(data.hull || 0)}%`);
+    setText(this.el.abortCredits, `${Math.round(data.credits || 0).toLocaleString('en-US')} CR`);
+    screen.classList.remove('is-hidden');
+    screen.classList.add('is-visible');
+    document.body.classList.add('is-abort-open');
+  }
+
+  hideAbortConfirm() {
+    const screen = this.el.abortScreen;
+    if (!screen) return;
+    screen.classList.add('is-hidden');
+    screen.classList.remove('is-visible');
+    document.body.classList.remove('is-abort-open');
+  }
+
+  setAbortEnabled(enabled) {
+    if (this.el.abortButton) this.el.abortButton.classList.toggle('is-hidden', !enabled);
+    if (!enabled) this.hideAbortConfirm();
   }
 
   updateContract(data) {

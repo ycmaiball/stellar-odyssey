@@ -2577,3 +2577,107 @@ body.scene-docking .scene-badge {
     padding-bottom: 8px;
   }
 }
+
+/* ===================================================================== */
+/*  ECONOMY — credits, locks, repair, abort                               */
+/* ===================================================================== */
+
+.yard-wallet {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 190, 120, 0.34);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(24, 30, 38, 0.86), rgba(12, 16, 21, 0.86));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03), 0 10px 26px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-mono, "Bahnschrift", monospace);
+  white-space: nowrap;
+}
+.yard-wallet__kicker { font-size: 8px; letter-spacing: 0.26em; color: #8be9ff; opacity: 0.8; }
+.yard-wallet b { font-size: 19px; color: #ffbe78; letter-spacing: 0.04em; text-shadow: 0 0 18px rgba(255, 190, 120, 0.35); }
+.yard-wallet__unit { font-size: 9px; letter-spacing: 0.2em; color: rgba(255, 190, 120, 0.75); }
+.yard-wallet__hull { font-size: 9px; letter-spacing: 0.14em; color: rgba(190, 214, 224, 0.6); margin-left: 6px; padding-left: 8px; border-left: 1px solid rgba(139, 233, 255, 0.18); }
+.yard-wallet__hull b { font-size: 11px; color: #8be9ff; }
+.yard-wallet__hull b.is-damaged { color: #ffbe78; }
+.yard-wallet__hull b.is-critical { color: #ff7d68; }
+
+.part-price {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  font-family: var(--font-mono, "Bahnschrift", monospace);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  padding: 3px 7px;
+  border-radius: 6px;
+  color: #ffbe78;
+  border: 1px solid rgba(255, 190, 120, 0.34);
+  background: rgba(255, 190, 120, 0.08);
+}
+.part-price.is-owned { color: rgba(139, 233, 255, 0.65); border-color: rgba(139, 233, 255, 0.22); background: rgba(139, 233, 255, 0.06); }
+.part-card.is-locked { opacity: 0.74; }
+.part-card.is-locked .part-thumb { filter: grayscale(0.6) brightness(0.72); }
+.part-card.is-locked:hover { border-color: rgba(255, 190, 120, 0.55); }
+.part-card.is-locked::after {
+  content: "LOCKED";
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 7px;
+  letter-spacing: 0.24em;
+  color: rgba(255, 190, 120, 0.85);
+  border: 1px solid rgba(255, 190, 120, 0.3);
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+.part-card { position: relative; }
+
+.picker-part.is-locked { opacity: 0.7; border-style: dashed; }
+.picker-price { font-family: var(--font-mono, monospace); font-size: 10px; color: #ffbe78; margin-left: auto; white-space: nowrap; }
+
+.unlock-rows { display: grid; gap: 8px; margin: 14px 0 4px; }
+.unlock-rows > div { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: rgba(190, 214, 224, 0.7); }
+.unlock-rows b { font-family: var(--font-mono, monospace); font-size: 15px; color: #ffbe78; }
+.unlock-rows > div:last-child b { color: #8be9ff; }
+.modal-copy--hint { font-size: 11px; color: rgba(190, 214, 224, 0.5); margin-top: 10px; }
+
+.repair-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 40%, rgba(10, 18, 24, 0.72), rgba(2, 5, 8, 0.94));
+  backdrop-filter: blur(6px);
+}
+.repair-overlay.is-hidden { display: none; }
+.repair-card {
+  width: min(520px, 100%);
+  padding: 26px 26px 22px;
+  border-radius: 18px;
+  border: 1px solid rgba(139, 233, 255, 0.22);
+  background: linear-gradient(160deg, rgba(20, 28, 36, 0.96), rgba(9, 13, 18, 0.96));
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  clip-path: polygon(0 18px, 18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%);
+}
+.repair-card h2 { font-size: 30px; margin: 6px 0 8px; letter-spacing: 0.06em; }
+.repair-copy { font-size: 12.5px; line-height: 1.7; color: rgba(196, 218, 228, 0.72); margin: 0 0 16px; }
+.repair-meter { height: 6px; border-radius: 4px; background: rgba(139, 233, 255, 0.12); overflow: hidden; margin-bottom: 16px; }
+.repair-meter span { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #ff7d68, #ffbe78 45%, #8be9ff); transition: width 0.4s ease; }
+.repair-rows { display: grid; gap: 9px; margin-bottom: 18px; }
+.repair-rows > div { display: flex; justify-content: space-between; font-size: 12px; color: rgba(190, 214, 224, 0.66); }
+.repair-rows b { font-family: var(--font-mono, monospace); color: #e9f4f7; font-size: 14px; }
+.repair-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.repair-actions .btn { flex: 1 1 140px; }
+.repair-note { font-size: 10.5px; color: rgba(190, 214, 224, 0.42); margin: 14px 0 0; line-height: 1.6; }
+
+@media (pointer: coarse), (max-width: 900px) {
+  .yard-wallet { padding: 7px 10px; gap: 4px; }
+  .yard-wallet b { font-size: 15px; }
+  .yard-wallet__hull { display: none; }
+  .yard-wallet__kicker { display: none; }
+  .repair-card { padding: 20px 18px; }
+  .repair-card h2 { font-size: 24px; }
+}
