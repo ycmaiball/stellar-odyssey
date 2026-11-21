@@ -14,7 +14,7 @@ import { createCombatSystem } from './combat.js';
 import { createContractSystem } from './contracts.js';
 import { createWarpCockpit } from './cockpit.js';
 import { createAuthSystem } from './auth.js';
-import { clamp, damp, formatNumber } from './utils.js';
+import { clamp, damp, formatNumber, smoothstep } from './utils.js';
 
 /* ─────────────────────────────────────────────────────────────
    Stellar Odyssey — flight director
@@ -142,6 +142,8 @@ let auth = null;
 let combat = null;
 let contracts = null;
 let progression = null;
+let guideRay = null;
+let guideRayMaterial = null;
 
 let bootStartedAt = performance.now();
 let lastFrame = 0;
@@ -554,6 +556,7 @@ function setupUniverse() {
 
 function setupShip() {
   ship = createShip();
+  setupGuideRay();
   ship.root.position.set(0, 0, 0);
   ship.root.quaternion.setFromEuler(new THREE.Euler(0.012, -0.205, 0, 'YXZ'));
   scene.add(ship.root);
@@ -1863,6 +1866,67 @@ function setFov(target, dt) {
 
 /* ── HUD + world-space labels ────────────────────────────── */
 
+function setupGuideRay() {
+  const geometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(),
+    new THREE.Vector3(),
+  ]);
+  guideRayMaterial = new THREE.LineBasicMaterial({
+    color: 0x9fe4ff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  guideRay = new THREE.Line(geometry, guideRayMaterial);
+  guideRay.frustumCulled = false;
+  guideRay.renderOrder = 2;
+  scene.add(guideRay);
+}
+
+function updateGuideRay(elapsed) {
+  if (!guideRay || !guideRayMaterial) return;
+  if (game.mode !== 'flight') {
+    guideRayMaterial.opacity = 0;
+    return;
+  }
+  const planet = universe.planets[game.targetIndex];
+  if (!planet) {
+    guideRayMaterial.opacity = 0;
+    return;
+  }
+  const origin = ship.root.position;
+  const end = planet.group.position;
+  const distance = origin.distanceTo(end);
+  const near = planet.visitDistance * 2.8;
+  if (distance > near) {
+    guideRayMaterial.opacity = 0;
+    return;
+  }
+  const closeness = smoothstep(near, planet.visitDistance * 0.75, distance);
+  const direction = end.clone().sub(origin).normalize();
+  const start = origin.clone().addScaledVector(direction, 6);
+  const surface = end.clone().addScaledVector(direction, -planet.radius * 0.96);
+  const positions = guideRay.geometry.attributes.position;
+  positions.setXYZ(0, start.x, start.y, start.z);
+  positions.setXYZ(1, surface.x, surface.y, surface.z);
+  positions.needsUpdate = true;
+  guideRayMaterial.opacity = 0.16 + closeness * 0.34 + Math.sin(elapsed * 2.4) * 0.04;
+}
+
+function updateHudTilt() {
+  if (!ui?.el?.hud || !ship) return;
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(ship.root.quaternion);
+  const pitch = Math.asin(clamp(forward.y, -1, 1));
+  const bank = clamp(game.bank, -1, 1);
+  ui.el.hud.style.setProperty('--tilt-x', `${(-pitch * 1.15).toFixed(2)}deg`);
+  ui.el.hud.style.setProperty('--tilt-y', `${(bank * 1.25).toFixed(2)}deg`);
+  /* A few pixels of counter-drift give the side instruments the same
+     cabin perspective as the top strip without moving their anchors. */
+  ui.el.hud.style.setProperty('--tilt-px-x', `${(bank * 5).toFixed(1)}px`);
+  ui.el.hud.style.setProperty('--tilt-px-y', `${(pitch * 4).toFixed(1)}px`);
+}
+
 function updateInterface(dt) {
   if (!universe || !ship) return;
 
@@ -1870,6 +1934,9 @@ function updateInterface(dt) {
   markerAccum += dt;
   radarAccum += dt;
   audioAccum += dt;
+
+  updateHudTilt();
+  updateGuideRay(game.elapsed);
 
   if (hudAccum >= 0.09) {
     hudAccum = 0;
@@ -2742,4 +2809,15 @@ function fatal(error) {
   } catch {
     if (app) app.innerHTML = `<div class="webgl-error">${message}</div>`;
   }
+}
+
+/* QA hook: exposed only when the page is opened with ?debug. */
+if (new URLSearchParams(window.location.search).has('debug')) {
+  window.__STELLAR__ = {
+    get guideRay() { return guideRay; },
+    get guideRayMaterial() { return guideRayMaterial; },
+    game,
+    get universe() { return universe; },
+    get ship() { return ship; },
+  };
 }

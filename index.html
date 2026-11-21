@@ -279,22 +279,24 @@
     <!-- ── HUD ──────────────────────────────────────────────── -->
     <div id="hud" class="hud is-hidden" aria-label="飞行抬头显示">
       <div class="hud-top">
-        <button id="btn-exit-flight" type="button" class="hud-icon-button hud-exit" aria-label="退出飞行返回起始界面">
-          <span class="hud-icon-button__glyph">⏻</span>
-          <span class="hud-icon-button__label">退出</span>
-        </button>
-        <div class="hud-brand">
-          <span class="hud-brand__mark">◈</span>
-          <div>
-            <span class="hud-brand__name">STELLAR ODYSSEY</span>
-            <span class="hud-brand__ship">NX-07 HELIOS</span>
+        <div class="hud-top__left">
+          <button id="btn-exit-flight" type="button" class="hud-icon-button hud-exit" aria-label="退出飞行返回起始界面">
+            <span class="hud-icon-button__glyph">⏻</span>
+            <span class="hud-icon-button__label">退出</span>
+          </button>
+          <div class="hud-brand">
+            <span class="hud-brand__mark">◈</span>
+            <div>
+              <span class="hud-brand__name">STELLAR ODYSSEY</span>
+              <span class="hud-brand__ship">NX-07 HELIOS</span>
+            </div>
           </div>
         </div>
 
-        <div class="hud-compass" aria-hidden="true">
-          <div class="hud-compass__hairline"></div>
+        <div class="hud-compass" aria-label="航向罗盘">
+          <div class="hud-compass__ring" aria-hidden="true"><i></i></div>
           <span id="hud-heading" class="hud-compass__value">000</span>
-          <span class="hud-compass__label">航向 / HEADING</span>
+          <span class="hud-compass__label">HDG / 航向</span>
           <span id="hud-mode" class="hud-compass__mode">CRUISE</span>
         </div>
 
@@ -304,28 +306,63 @@
             <b id="hud-credits-value">300</b><span class="hud-credits__unit">CR</span>
             <span id="hud-credit-floaters" class="hud-credits__floaters" aria-hidden="true"></span>
           </div>
-          <button id="btn-sound" type="button" class="hud-icon-button" aria-label="静音">
-            <span class="hud-icon-button__glyph" id="sound-glyph">◖</span>
-            <span class="hud-icon-button__label">AUDIO</span>
+
+          <div id="hud-mode-toggle" class="hud-mode-toggle" role="group" aria-label="HUD 模式">
+            <button type="button" data-hud-mode="explore" class="is-active">探索</button>
+            <button type="button" data-hud-mode="combat">战斗</button>
+          </div>
+
+          <button id="btn-settings" type="button" class="hud-icon-button hud-settings-toggle" aria-expanded="false" aria-label="设置与工具">
+            <span class="hud-icon-button__glyph">⚙</span>
+            <span class="hud-icon-button__label">设置</span>
           </button>
-          <button id="btn-inspect" type="button" class="hud-icon-button hud-icon-button--accent" aria-label="结构分解视图">
-            <span class="hud-icon-button__glyph">⌗</span>
-            <span class="hud-icon-button__label">分解 <kbd>X</kbd></span>
-          </button>
-          <a class="mode-switch mode-switch--hud" href="./shipyard/" aria-label="切换到光速飞船装配台">
-            <span class="mode-switch__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2.8 20.2 7.4v9.2L12 21.2 3.8 16.6V7.4Z"/>
-                <path d="M12 7 16.2 9.4v5.2L12 17l-4.2-2.4V9.4Z"/>
-              </svg>
-            </span>
-            <span class="mode-switch__copy">
-              <span class="mode-switch__kicker">SHIPYARD</span>
-              <span class="mode-switch__label">装配台</span>
-            </span>
-          </a>
+
         </div>
       </div>
+
+      <nav class="hud-dock hud-dock--left" aria-label="左侧数据舱">
+        <button type="button" class="hud-dock__btn" data-hud-panel="radar" aria-pressed="false">
+          <span class="hud-dock__glyph">◎</span><span class="hud-dock__label">雷达</span>
+        </button>
+        <button type="button" class="hud-dock__btn" data-hud-panel="telemetry" aria-pressed="false">
+          <span class="hud-dock__glyph">⊟</span><span class="hud-dock__label">遥测</span>
+        </button>
+      </nav>
+
+      <nav class="hud-dock hud-dock--right" aria-label="右侧数据舱">
+        <button type="button" class="hud-dock__btn" data-hud-panel="nav" aria-pressed="false">
+          <span class="hud-dock__glyph">◈</span><span class="hud-dock__label">目标</span>
+        </button>
+        <button type="button" class="hud-dock__btn" data-hud-panel="combat" aria-pressed="false">
+          <span class="hud-dock__glyph">✦</span><span class="hud-dock__label">战斗</span>
+        </button>
+      </nav>
+
+      <div id="hud-settings" class="hud-settings is-hidden">
+        <span class="hud-settings__kicker">SYSTEMS / 系统</span>
+        <button id="btn-sound" type="button" class="hud-settings__row" aria-label="静音">
+          <span class="hud-settings__glyph" id="sound-glyph">◖</span>
+          <span>音效</span><small>AUDIO</small>
+        </button>
+        <button id="btn-inspect" type="button" class="hud-settings__row" aria-label="结构分解视图">
+          <span class="hud-settings__glyph">⌗</span>
+          <span>结构分解</span><small>X</small>
+        </button>
+        <a class="hud-settings__row" href="./shipyard/" aria-label="切换到光速飞船装配台">
+          <span class="hud-settings__glyph">◇</span>
+          <span>装配台</span><small>BAY ↗</small>
+        </a>
+        <span class="hud-settings__note">本地原型 · 无后端</span>
+      </div>
+
+      <button id="target-chip" type="button" class="target-chip" aria-label="展开导航目标详情">
+        <span class="target-chip__kicker">DESTINATION</span>
+        <span class="target-chip__row">
+          <b id="chip-planet-name">地球</b>
+          <span id="chip-planet-distance">— AU</span>
+        </span>
+        <span id="chip-planet-status" class="target-chip__status">航向锁定</span>
+      </button>
 
       <div id="mission-strip" class="mission-strip" aria-live="polite">
         <span class="mission-strip__kicker">CURRENT VECTOR / 当前航路</span>
@@ -414,9 +451,9 @@
           </div>
         </div>
         <div class="core-status__telemetry">
-          <span><b id="core-speed">0.000c</b><small>速度</small></span>
-          <span><b id="core-warp">100%</b><small>曲率</small></span>
-          <span><b id="core-kills">00</b><small>击毁</small></span>
+          <span data-tip="当前速度 · 1c = 光速"><b id="core-speed">0.000c</b><small>速度</small></span>
+          <span data-tip="曲率推进档位 · 按住 SHIFT 进入光速巡航"><b id="core-warp">100%</b><small>曲率</small></span>
+          <span data-tip="本次航行累计击毁数"><b id="core-kills">00</b><small>击毁</small></span>
         </div>
       </aside>
 
@@ -512,21 +549,21 @@
           <span id="combat-wave">WAVE 01</span>
           <span id="combat-kills">击毁 00</span>
         </div>
-        <div class="combat-bar">
+        <div class="combat-bar combat-bar--shield" data-tip="护盾 · 优先吸收伤害，脱离交火后自动回充">
           <div class="combat-bar__head">
             <span>护盾 / SHIELD</span>
             <span id="combat-shield-value">100</span>
           </div>
           <div class="combat-bar__track"><i id="combat-shield-fill"></i></div>
         </div>
-        <div class="combat-bar combat-bar--hull">
+        <div class="combat-bar combat-bar--hull" data-tip="舰体 · 护盾耗尽后才会受损，可在装配台维修">
           <div class="combat-bar__head">
             <span>舰体 / HULL</span>
             <span id="combat-hull-value">100</span>
           </div>
           <div class="combat-bar__track"><i id="combat-hull-fill"></i></div>
         </div>
-        <div class="combat-bar combat-bar--heat">
+        <div class="combat-bar combat-bar--heat" data-tip="开火余量 · 连续射击 6 秒，打空后冷却 16 秒">
           <div class="combat-bar__head">
             <span>开火余量 / BUDGET</span>
             <span id="combat-weapon-state">就绪</span>

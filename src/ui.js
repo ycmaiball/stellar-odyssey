@@ -193,12 +193,25 @@ export class GameUI {
       missileState: $('missile-state'),
       exitFlight: $('btn-exit-flight'),
       warpHint: $('warp-cockpit-hint'),
+      hudModeToggle: $('hud-mode-toggle'),
+      settingsToggle: $('btn-settings'),
+      settingsPanel: $('hud-settings'),
+      targetChip: $('target-chip'),
+      chipName: $('chip-planet-name'),
+      chipDistance: $('chip-planet-distance'),
+      chipStatus: $('chip-planet-status'),
+      dockButtons: Array.from(document.querySelectorAll('[data-hud-panel]')),
     };
 
     this.hitTimer = 0;
     this.killTimer = 0;
     this.damageTimer = 0;
     this.tacticalActive = false;
+    this.hudMode = 'explore';
+    this.openPanels = new Set();
+    this.combatPrev = { shield: 100, hull: 100, heat: 100 };
+    this.targetKey = null;
+    this.targetDistanceText = '';
 
     this.bindEvents();
     this.radarCtx = this.el.radar ? this.el.radar.getContext('2d') : null;
@@ -249,6 +262,29 @@ export class GameUI {
     click('btn-touch-inspect', () => this.callbacks.onInspect?.());
     click('btn-touch-target', () => this.callbacks.onTargetStep?.(1));
     click('btn-touch-auto', () => this.callbacks.onAutopilot?.());
+    click('target-chip', () => this.togglePanel('nav'));
+    click('btn-settings', () => this.setSettingsOpen(this.el.settingsPanel?.classList.contains('is-hidden') ?? true));
+
+    this.el.dockButtons.forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.togglePanel(button.dataset.hudPanel);
+      });
+    });
+
+    this.el.hudModeToggle?.addEventListener('click', (event) => {
+      const modeButton = event.target.closest('[data-hud-mode]');
+      if (!modeButton) return;
+      event.preventDefault();
+      this.setHudMode(modeButton.dataset.hudMode);
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!this.el.settingsPanel || this.el.settingsPanel.classList.contains('is-hidden')) return;
+      if (event.target.closest('#hud-settings') || event.target.closest('#btn-settings')) return;
+      this.setSettingsOpen(false);
+    });
 
     const holdButton = (id, startEvent, endEvent) => {
       const element = $(id);
@@ -333,10 +369,78 @@ export class GameUI {
     }, failed ? 500 : 850);
   }
 
+  setHudMode(mode) {
+    this.hudMode = mode === 'combat' ? 'combat' : 'explore';
+    this.el.hudModeToggle?.querySelectorAll('[data-hud-mode]').forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.hudMode === this.hudMode);
+    });
+    this.el.hud?.classList.toggle('is-hud-combat', this.hudMode === 'combat');
+    if (this.hudMode === 'combat') {
+      this.openPanel('combat');
+      this.openPanel('radar');
+    } else {
+      this.closePanels();
+    }
+  }
+
+  openPanel(name) {
+    if (!name) return;
+    const panel = this.panelFor(name);
+    if (!panel) return;
+    this.openPanels.add(name);
+    this.el.hud?.classList.add(`is-open-${name}`);
+    this.el.hud?.classList.toggle('is-hud-panel-open', this.openPanels.size > 0);
+    const button = this.el.dockButtons.find((item) => item.dataset.hudPanel === name);
+    button?.classList.add('is-active');
+    button?.setAttribute('aria-pressed', 'true');
+    this.setSettingsOpen(false);
+  }
+
+  closePanel(name) {
+    this.openPanels.delete(name);
+    this.el.hud?.classList.remove(`is-open-${name}`);
+    this.el.hud?.classList.toggle('is-hud-panel-open', this.openPanels.size > 0);
+    const button = this.el.dockButtons.find((item) => item.dataset.hudPanel === name);
+    button?.classList.remove('is-active');
+    button?.setAttribute('aria-pressed', 'false');
+  }
+
+  togglePanel(name) {
+    if (!name) return;
+    if (this.openPanels.has(name)) this.closePanel(name);
+    else this.openPanel(name);
+  }
+
+  closePanels() {
+    [...this.openPanels].forEach((name) => this.closePanel(name));
+  }
+
+  panelFor(name) {
+    switch (name) {
+      case 'radar':
+        return document.querySelector('.radar-panel');
+      case 'telemetry':
+        return document.querySelector('.telemetry-panel');
+      case 'nav':
+        return document.querySelector('.nav-panel');
+      case 'combat':
+        return this.el.combatPanel;
+      default:
+        return null;
+    }
+  }
+
+  setSettingsOpen(open) {
+    if (!this.el.settingsPanel || !this.el.settingsToggle) return;
+    this.el.settingsPanel.classList.toggle('is-hidden', !open);
+    this.el.settingsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
   enterFlight() {
     if (!this.started) this.started = true;
     this.el.start?.classList.add('is-leaving');
     this.setMode('flight');
+    this.setHudMode('explore');
     this.el.hud?.classList.remove('is-hidden');
     window.setTimeout(() => {
       this.el.hud?.classList.add('is-live');
@@ -375,6 +479,8 @@ export class GameUI {
     );
     this.el.app?.classList.add(`mode-${mode}`);
     if (mode !== 'flight') {
+      this.closePanels();
+      this.setSettingsOpen(false);
       this.setTacticalScan(false);
       this.el.hitMarker?.classList.remove('is-hit', 'is-kill');
       this.el.killConfirm?.classList.remove('is-visible');
@@ -463,11 +569,21 @@ export class GameUI {
     this.planetMarkers.forEach((marker, key) => {
       marker.root.classList.toggle('is-selected', key === planet.key);
     });
+    setText(this.el.chipName, planet.cn);
+    this.syncChipStatus();
+  }
+
+  syncChipStatus() {
+    if (!this.el.chipStatus) return;
+    const found = this.targetKey ? this.discovered?.has(this.targetKey) : false;
+    setText(this.el.chipStatus, found ? '已勘测 / SURVEYED' : '航向锁定 / LOCKED');
+    this.el.chipStatus.classList.toggle('is-done', Boolean(found));
   }
 
   updateTargetTelemetry(distanceText, bearingText) {
     if (distanceText !== undefined) {
       setText(this.el.targetDistance, distanceText);
+      setText(this.el.chipDistance, distanceText);
       this.cache.targetDistance = distanceText;
     }
     if (bearingText !== undefined) {
@@ -495,6 +611,7 @@ export class GameUI {
     if (this.el.discoverFill) {
       this.el.discoverFill.style.width = `${(count / total) * 100}%`;
     }
+    this.syncChipStatus();
   }
 
   setPlanetMarkers(items) {
@@ -680,6 +797,9 @@ export class GameUI {
     if (this.el.combatHeatFill) {
       this.el.combatHeatFill.style.width = `${heatPct.toFixed(1)}%`;
     }
+    this.setCombatArc(this.el.combatShieldBar, shieldPct, 'shield', true);
+    this.setCombatArc(this.el.combatHullBar, hullPct, 'hull', true);
+    this.setCombatArc(this.el.combatPanel?.querySelector('.combat-bar--heat'), heatPct, 'heat', false);
     setText(this.el.combatShieldValue, String(Math.round(data.shield)).padStart(3, '0'));
     setText(this.el.combatHullValue, String(Math.round(data.hull)).padStart(3, '0'));
     setText(
@@ -750,6 +870,25 @@ export class GameUI {
     floater.textContent = `${amount >= 0 ? '+' : '−'}${Math.abs(Math.round(amount))} CR`;
     layer.append(floater);
     window.setTimeout(() => floater.remove(), 1600);
+  }
+
+  setCombatArc(bar, pct, key, pulse) {
+    if (!bar) return;
+    const track = bar.querySelector('.combat-bar__track');
+    if (track) track.style.setProperty('--v', pct.toFixed(1));
+    if (!pulse) {
+      this.combatPrev[key] = pct;
+      return;
+    }
+    const previous = this.combatPrev[key];
+    if (Math.abs(previous - pct) >= 3) {
+      bar.classList.remove('is-pulsing');
+      void bar.offsetWidth;
+      bar.classList.add('is-pulsing');
+      window.clearTimeout(bar.pulseTimer);
+      bar.pulseTimer = window.setTimeout(() => bar.classList.remove('is-pulsing'), 660);
+    }
+    this.combatPrev[key] = pct;
   }
 
   updateMissiles(data) {
