@@ -11,3 +11,6 @@ node_modules/
 qa-*.mjs
 qa-*.png
 progress.md
+
+# Blender rebuild experiment (archived outside the repo)
+blender/

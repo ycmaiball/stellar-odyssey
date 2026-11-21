@@ -160,6 +160,7 @@ const chaseStableUp = new THREE.Vector3();
 const chaseRight = new THREE.Vector3();
 const chaseDesired = new THREE.Vector3();
 const chaseLook = new THREE.Vector3();
+const chaseLookOffset = new THREE.Vector3();
 const chaseOffset = new THREE.Vector3();
 const cockpitPosition = new THREE.Vector3();
 const autopilotAvoidance = new THREE.Vector3();
@@ -991,8 +992,8 @@ function updateFlight(dt) {
     manualTakeover();
   }
 
-  game.steer.x = damp(game.steer.x, game.pointer.down ? game.steerTarget.x : 0, 11, dt);
-  game.steer.y = damp(game.steer.y, game.pointer.down ? game.steerTarget.y : 0, 11, dt);
+  game.steer.x = damp(game.steer.x, game.pointer.down ? game.steerTarget.x : 0, 20, dt);
+  game.steer.y = damp(game.steer.y, game.pointer.down ? game.steerTarget.y : 0, 20, dt);
 
   if (game.autopilot) {
     updateAutopilot(dt);
@@ -1015,12 +1016,12 @@ function updateFlight(dt) {
     const warpControlScale = 1 - game.warp * 0.28;
 
     if (yawInput !== 0 || pitchInput !== 0 || turnZ !== 0) {
-      tempQy.setFromAxisAngle(Y_AXIS, yawInput * 1.04 * dt * warpControlScale);
+      tempQy.setFromAxisAngle(Y_AXIS, yawInput * 1.28 * dt * warpControlScale);
       tempQp.setFromAxisAngle(
         X_AXIS,
-        pitchInput * 0.82 * dt * warpControlScale,
+        pitchInput * 1.02 * dt * warpControlScale,
       );
-      tempQr.setFromAxisAngle(Z_AXIS, turnZ * 1.5 * dt * warpControlScale);
+      tempQr.setFromAxisAngle(Z_AXIS, turnZ * 1.75 * dt * warpControlScale);
       ship.root.quaternion
         .multiply(tempQy)
         .multiply(tempQp)
@@ -1419,51 +1420,53 @@ function updateMenuCamera(dt) {
 }
 
 function updateChaseCamera(dt) {
+  /* Center-locked chase rig:
+     the eye sits strictly on the hull's aft axis (no lateral offset, no
+     look-ahead), so the nose always points into the vanishing point and the
+     ship's centre is exactly the screen centre. Reactivity comes from the
+     ship's own rotation, not from a lagging camera, which keeps the
+     orientation stable while turning. */
   const forward = chaseForward
     .set(0, 0, -1)
     .applyQuaternion(ship.root.quaternion);
   const shipUp = chaseShipUp
     .set(0, 1, 0)
     .applyQuaternion(ship.root.quaternion);
+
+  /* horizon stays level: only a touch of the ship's roll bleeds into the
+     camera, so banking reads without rolling the world */
   const stableUp = chaseStableUp
     .copy(Y_AXIS)
-    .multiplyScalar(0.76)
-    .addScaledVector(shipUp, 0.24)
+    .multiplyScalar(0.9)
+    .addScaledVector(shipUp, 0.1)
     .normalize();
 
   const speedNorm = clamp(game.speed / 3200, 0, 1);
   const aspect = window.innerWidth / Math.max(1, window.innerHeight);
-  const portraitBoost =
-    aspect < 1.15 ? clamp(1.26 / aspect, 1, 1.6) : 1;
-  const back = (74 + speedNorm * 18 + game.warp * 12) * portraitBoost;
-  const height =
-    (25 + speedNorm * 7 + game.warp * 3) * (1 + (portraitBoost - 1) * 0.32);
-  const side = (36 - game.steer.x * 10 - game.bank * 4) * portraitBoost;
-  chaseRight.set(1, 0, 0).applyQuaternion(ship.root.quaternion);
+  const portraitBoost = aspect < 1.15 ? clamp(1.26 / aspect, 1, 1.6) : 1;
+  const back = (100 + speedNorm * 10) * portraitBoost;
+  const height = 60 * (1 + (portraitBoost - 1) * 0.3);
 
   const desiredOffset = chaseDesired
     .set(0, 0, 0)
     .addScaledVector(forward, -back)
-    .addScaledVector(stableUp, height)
-    .addScaledVector(chaseRight, side);
-  desiredOffset.x += Math.sin(game.clock * 37.1) * game.warp * 0.55;
-  desiredOffset.y += Math.cos(game.clock * 29.3) * game.warp * 0.45;
+    .addScaledVector(stableUp, height);
 
-  if (!chaseOffsetReady) {
-    chaseOffset.copy(desiredOffset);
-    chaseOffsetReady = true;
-  } else {
-    chaseOffset.lerp(desiredOffset, 1 - Math.exp(-5.2 * dt));
-  }
+  /* hard lock (no positional lag) — the rig is bolted to the hull */
+  chaseOffset.copy(desiredOffset);
+  chaseOffsetReady = true;
   camera.position.copy(ship.root.position).add(chaseOffset);
   camera.up.copy(stableUp);
 
+  /* Aim at the visual centre of the whole vessel (hull + warp ring), not at
+     the hull origin: the ring sits 7.3 m aft and 1.3 m up, so a hull-origin
+     aim leaves the ship reading ~25 px low. The offset is rigid in ship
+     space, so the framing never drifts as the ship turns. */
   const lookTarget = chaseLook
     .copy(ship.root.position)
-    .addScaledVector(forward, 26 + game.warp * 24)
-    .addScaledVector(stableUp, 5.2);
-  game.cameraLook.lerp(lookTarget, 1 - Math.exp(-6.8 * dt));
-  camera.lookAt(game.cameraLook);
+    .add(chaseLookOffset.set(0, 1.3, 7.3).applyQuaternion(ship.root.quaternion));
+  game.cameraLook.copy(lookTarget);
+  camera.lookAt(lookTarget);
 
   const blend = game.warpCockpit * game.warpCockpit * (3 - 2 * game.warpCockpit);
   const baseFov = 57 + game.warp * 8;

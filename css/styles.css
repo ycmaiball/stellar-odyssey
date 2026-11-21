@@ -4954,3 +4954,9 @@ body.is-launch-arrival::after {
     opacity: 0.26;
   }
 }
+
+/* centred chase view: the ship itself is the aim point, so the reticle is redundant */
+.hud.is-live:not(.is-warp-cockpit) .reticle {
+  opacity: 0;
+  visibility: hidden;
+}
