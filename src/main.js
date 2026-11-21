@@ -35,8 +35,18 @@ const NAV_KM_PER_UNIT = 50000;
 const AU_KM = 149597870.7;
 
 const ENTRY_PARAMS = new URLSearchParams(window.location.search);
+function readArrivalToken() {
+  try {
+    return window.sessionStorage.getItem('stellar_odyssey:arrival-ok') === '1';
+  } catch (error) {
+    return false;
+  }
+}
+
 const ARRIVAL_FROM_SHIPYARD =
-  ENTRY_PARAMS.get('from') === 'shipyard' && ENTRY_PARAMS.get('launch') === '1';
+  ENTRY_PARAMS.get('from') === 'shipyard' &&
+  ENTRY_PARAMS.get('launch') === '1' &&
+  readArrivalToken();
 
 const game = {
   mode: 'boot',
@@ -887,6 +897,11 @@ function finalizeBoot(failed) {
        start-screen confirmation and slide straight into the cockpit. */
     window.setTimeout(() => {
       if (!game.started) startMission();
+      try {
+        window.sessionStorage.removeItem('stellar_odyssey:arrival-ok');
+      } catch (error) {
+        /* ignore */
+      }
       const cleanUrl = `${window.location.pathname}${window.location.hash}`;
       window.history.replaceState({}, document.title, cleanUrl);
       window.setTimeout(() => {

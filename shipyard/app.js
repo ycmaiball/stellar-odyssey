@@ -2622,6 +2622,12 @@
   function navigateToFlight() {
     if (launchNavigated) return;
     launchNavigated = true;
+    /* One-shot pass proving the sortie was launched from the bay. */
+    try {
+      window.sessionStorage.setItem('stellar_odyssey:arrival-ok', '1');
+    } catch (error) {
+      /* private mode: the flight page will simply show its start screen */
+    }
     const overlay = $('#launch-overlay');
     overlay?.classList.add('is-launching-out');
     document.body.classList.add('is-launching');
