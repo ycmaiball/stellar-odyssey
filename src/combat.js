@@ -580,6 +580,7 @@ export class CombatSystem {
   _destroyEnemy(enemy) {
     if (enemy.dead) return;
     enemy.dead = true;
+    const deathPosition = enemy.group.position.clone();
     this._spawnBurst(enemy.group.position, 0xff5b3d, 34);
     this.scene.remove(enemy.group);
     const index = this.enemies.indexOf(enemy);
@@ -593,6 +594,7 @@ export class CombatSystem {
       kills: this.kills,
       wave: this.wave,
       remaining: this.enemies.length,
+      position: deathPosition,
     });
 
     if (this.enemies.length === 0) {

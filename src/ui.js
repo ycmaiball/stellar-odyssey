@@ -155,6 +155,14 @@ export class GameUI {
       missionObjective: $('mission-objective'),
       missionProgress: $('mission-progress'),
       tacticalBanner: $('tactical-banner'),
+      contractChip: $('contract-chip'),
+      contractKicker: $('contract-kicker'),
+      contractTitle: $('contract-title'),
+      contractProgress: $('contract-progress'),
+      contractReward: $('contract-reward'),
+      contractCredits: $('contract-credits'),
+      contractRank: $('contract-rank'),
+      contractDesc: $('contract-desc'),
       hitMarker: $('hit-marker'),
       killConfirm: $('kill-confirm'),
       killConfirmName: $('kill-confirm-name'),
@@ -289,6 +297,7 @@ export class GameUI {
     this.setBootProgress(100, failed ? '部分链路离线 · 使用本地星图' : '深空链路稳定');
     this.ready = true;
     window.setTimeout(() => {
+      if (this.started) return;
       this.el.boot?.classList.add('is-finished');
       this.el.start?.classList.remove('is-hidden');
       this.setMode('start');
@@ -696,6 +705,22 @@ export class GameUI {
     this.el.coreHullBar?.classList.toggle('is-critical', hullPct <= 34);
     this.el.coreHeatBar?.classList.toggle('is-hot', data.heat > 72 && !data.overheated);
     this.el.coreHeatBar?.classList.toggle('is-overheated', Boolean(data.overheated));
+  }
+
+  updateContract(data) {
+    const chip = this.el.contractChip;
+    if (!chip) return;
+    const visible = Boolean(data && data.visible);
+    chip.classList.toggle('is-hidden', !visible);
+    if (!visible) return;
+    setText(this.el.contractKicker, data.kicker || 'CONTRACT / 合约');
+    setText(this.el.contractTitle, data.title || '—');
+    setText(this.el.contractProgress, data.progressText || `${data.progress || 0} / ${data.need || 0}`);
+    setText(this.el.contractReward, `+${data.reward || 0} CR`);
+    setText(this.el.contractCredits, `CR ${data.credits || 0}`);
+    setText(this.el.contractRank, data.rankCn || '见习舰长');
+    setText(this.el.contractDesc, data.desc || '');
+    chip.classList.toggle('is-complete', Boolean(data.pending));
   }
 
   updateEnemyMarkers(items = []) {

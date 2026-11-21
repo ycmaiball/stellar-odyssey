@@ -41,6 +41,16 @@ python -m http.server 8000
 - 账号、会话分别存放在 `localStorage` 的 `stellar_odyssey:accounts:v1` / `stellar_odyssey:session:v1`，可在浏览器控制台清空。
 - 当前是纯前端原型（无后端）；账号数据模型、错误码与 REST 契约见 [`docs/user-system.md`](docs/user-system.md)，接后端时按该契约为准。
 
+## 合约与打捞
+
+飞行模式会自动接取三段轮换的合约，进度显示在任务条下方的小卡片里：
+
+- **勘测**：抵达指定行星完成扫描，报酬 180 CR。
+- **清剿**：击毁 4 艘敌对拦截机，报酬 220 CR。
+- **回收**：打捞 3 枚残骸核心（击毁敌机有几率掉落，靠近自动回收），报酬 260 CR。
+
+每完成一份合约结算 CR 与经验，经验累计决定军衔（见习舰长 → 上尉 → 少校 → 星区指挥官）；结算后约 6 秒派发下一份，卡片会显示「接收下一份合约 · N s」。进度按舰长账号持久化在 `localStorage` 的 `stellar_odyssey:contracts:v1:<账号 ID>`，换账号互不影响；未登录时归入 `guest`。
+
 ## 操作
 
 | 输入 | 功能 |
@@ -159,6 +169,7 @@ stellar-odyssey/
 │  ├─ audio.js                # Web Audio 音景
 │  ├─ ui.js                   # HUD / 标注 / 面板 / 提示
 │  ├─ auth.js                 # 飞船账号注册、登录、会话与锁定
+│  ├─ contracts.js            # 合约轮换、CR / 军衔结算与残骸打捞
 │  └─ utils.js                # 数学、绘制、文本纹理工具
 ├─ shipyard/
 │  ├─ index.html              # 装配台界面、3D 画布与槽位层

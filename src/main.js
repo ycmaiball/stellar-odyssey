@@ -11,6 +11,7 @@ import { createShip } from './ship.js';
 import { createAudioEngine } from './audio.js';
 import { createUI } from './ui.js';
 import { createCombatSystem } from './combat.js';
+import { createContractSystem } from './contracts.js';
 import { createWarpCockpit } from './cockpit.js';
 import { createAuthSystem } from './auth.js';
 import { clamp, damp, formatNumber } from './utils.js';
@@ -126,6 +127,7 @@ let ship = null;
 let warpCockpitRig = null;
 let auth = null;
 let combat = null;
+let contracts = null;
 
 let bootStartedAt = performance.now();
 let lastFrame = 0;
@@ -310,6 +312,7 @@ function init() {
     setupPostprocessing();
     setupInterface();
     setupAuth();
+    setupContracts();
     setupCombat();
     bindInput();
     onResize();
@@ -332,6 +335,9 @@ function init() {
       },
       get combat() {
         return combat;
+      },
+      get contracts() {
+        return contracts;
       },
       get warpCockpitRig() {
         return warpCockpitRig;
@@ -550,8 +556,9 @@ function setupCombat() {
         ui.showAlert('空域暂时净空 · 武器系统散热中', 2600);
         audio.confirm();
       },
-      onEnemyKilled: ({ kills, remaining }) => {
+      onEnemyKilled: ({ kills, remaining, position }) => {
         game.combatKills = kills;
+        contracts?.notifyKill(position);
         if (remaining === 0) ui.showAlert('敌方信号消失 · 重新扫描空域', 1800);
       },
       onEnemyHit: ({ name, killed }) => {
@@ -587,6 +594,50 @@ function setupCombat() {
 
   ui.setCombatActive(false);
   ui.updateCombat(combat.getHudData());
+}
+
+/* ── contracts / salvage ────────────────────────────────── */
+
+function setupContracts() {
+  contracts = createContractSystem({
+    scene,
+    ship,
+    audio,
+    callbacks: {
+      undiscoveredPlanets: () =>
+        universe ? universe.planets.filter((planet) => !game.discovered.has(planet.key)) : [],
+      onIssued: (data) => {
+        if (game.mode !== 'flight') return;
+        ui.updateContract(data);
+        ui.showToast({
+          kicker: data.kicker || 'CONTRACT / 合约',
+          title: `新合约 · ${data.title}`,
+          text: `${data.desc} 报酬 ${data.reward} CR`,
+          tone: 'system',
+          duration: 5000,
+        });
+      },
+      onComplete: ({ title, reward, credits, rank, completed }) => {
+        ui.updateContract(contracts.getHudData());
+        ui.showToast({
+          kicker: 'CONTRACT / SETTLED',
+          title: `合约完成 · ${title}`,
+          text: `+${reward} CR · 累计 ${credits} CR · 第 ${completed} 份 · ${rank.cn}`,
+          tone: 'discovery',
+          duration: 5200,
+        });
+        ui.showAlert(`报酬入账 +${reward} CR`, 2400);
+        audio.confirm();
+      },
+      onSalvage: ({ remaining }) => {
+        ui.updateContract(contracts.getHudData());
+        ui.showAlert(remaining > 0 ? '残骸核心已回收 · 附近仍有信号' : '残骸核心已回收', 2000);
+        audio.click();
+      },
+      onWreck: () => {},
+    },
+  });
+  ui.updateContract(contracts.getHudData());
 }
 
 function syncCombatFiring() {
@@ -818,6 +869,14 @@ function startMission() {
     ui.updateCombat(combat.getHudData());
   }
 
+  if (contracts) {
+    contracts.start({
+      accountId: auth?.getSession()?.accountId || 'guest',
+      discoveredKeys: [...game.discovered],
+    });
+    ui.updateContract(contracts.getHudData());
+  }
+
   audio.setMuted(game.muted);
   audio.start().catch(() => {});
   audio.confirm();
@@ -1005,6 +1064,7 @@ function updateSimulation(dt) {
   if (game.mode === 'flight') {
     updateFlight(dt);
     combat?.update(dt);
+    contracts?.update(dt, ship.root.position);
     checkDiscovery();
     if (
       game.completePending &&
@@ -1335,6 +1395,7 @@ function checkDiscovery() {
     if (distance > planet.visitDistance) continue;
 
     game.discovered.add(planet.key);
+    contracts?.notifyPlanet(planet.key);
     ui.setDiscovered([...game.discovered]);
     audio.discovery();
 
@@ -1627,6 +1688,7 @@ function updateInterface(dt) {
     hudAccum = 0;
     updateHud();
     updateCombatHud();
+    if (contracts) ui.updateContract(contracts.getHudData());
   }
 
   if (markerAccum >= 0.07) {
