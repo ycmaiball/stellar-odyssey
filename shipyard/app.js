@@ -978,6 +978,7 @@
     const libraryFoot = $('.library-foot');
     if (libraryFoot) libraryFoot.firstElementChild.textContent = `已解锁 ${PARTS.filter((item) => isUnlocked(item.id)).length} / ${PARTS.length} 个零件`;
     updateCreditsChip();
+      if (window.__PART_THUMBS) applyPartThumbnails(window.__PART_THUMBS);
   }
 
   function slotMarkup(slot, index) {
@@ -3520,10 +3521,22 @@
     }
   }
 
+  function applyPartThumbnails(map) {
+    if (!map) return;
+    document.querySelectorAll('.part-card[data-part-id]').forEach((card) => {
+      const source = map[card.dataset.partId];
+      if (!source) return;
+      const box = card.querySelector('.part-thumb');
+      if (!box) return;
+      box.innerHTML = `<img class="part-thumb__img" src="${source}" alt="" draggable="false">`;
+    });
+  }
+
   function exposeSceneApi() {
     window.ShipyardApp = {
       getSnapshot: () => JSON.parse(JSON.stringify(currentSnapshot())),
       getPart: (id) => PART_BY_ID.get(id) || null,
+      getAllParts: () => PARTS.map((part) => ({ id: part.id, name: part.name, category: part.category })),
       getStats: () => JSON.parse(JSON.stringify(computeStats(state))),
       toast: (message, tone = 'info') => showToast(message, tone),
     };
@@ -3559,6 +3572,8 @@
     }
     exposeSceneApi();
     setupRefitExperience();
+    window.addEventListener('shipyard:thumbs-ready', (event) => applyPartThumbnails(event.detail));
+    if (window.__PART_THUMBS) applyPartThumbnails(window.__PART_THUMBS);
     try {
       window.dispatchEvent(new CustomEvent('shipyard:app-ready', {
         detail: JSON.parse(JSON.stringify(currentSnapshot())),

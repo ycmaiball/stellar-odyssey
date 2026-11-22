@@ -737,6 +737,86 @@ import { createSkyTexture } from '../src/textures.js';
   }
 
   /* ------------------------------------------------------------------ */
+  /* Part thumbnails — one real 3D render per catalogue entry            */
+  /* ------------------------------------------------------------------ */
+
+  function renderPartThumbnails(app) {
+    if (!app || typeof app.getAllParts !== 'function') return;
+    if (window.__PART_THUMBS) return;
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    } catch (error) {
+      console.warn('part thumbnail renderer unavailable', error);
+      return;
+    }
+    const SIZE = 192;
+    renderer.setPixelRatio(1);
+    renderer.setSize(SIZE, SIZE);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
+
+    const thumbScene = new THREE.Scene();
+    const thumbCamera = new THREE.PerspectiveCamera(30, 1, 0.1, 4000);
+    thumbScene.add(new THREE.HemisphereLight(0xd9f4ff, 0x0b1620, 1.55));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 3.1);
+    keyLight.position.set(4, 6, 5);
+    thumbScene.add(keyLight);
+    const rimLight = new THREE.DirectionalLight(0x8ef0ff, 2.6);
+    rimLight.position.set(-5, 2.4, -4);
+    thumbScene.add(rimLight);
+    const warmBounce = new THREE.PointLight(0xff6a4a, 110, 140, 2);
+    warmBounce.position.set(-3, -3, 4);
+    thumbScene.add(warmBounce);
+
+    const map = {};
+    const dir = new THREE.Vector3();
+    const box = new THREE.Box3();
+    const sizeVec = new THREE.Vector3();
+    const center = new THREE.Vector3();
+
+    app.getAllParts().forEach((part, index) => {
+      const model = buildPartModel(part);
+      if (!model) return;
+      thumbScene.add(model);
+      box.setFromObject(model);
+      box.getSize(sizeVec);
+      box.getCenter(center);
+      const maxDim = Math.max(sizeVec.x, sizeVec.y, sizeVec.z, 0.4);
+      const distance = maxDim * 2.15;
+      // Same matte-metal oblique family for every card, but each entry gets
+      // its own azimuth/elevation step so no two previews read as copies.
+      const azimuth = 0.66 + ((index % 5) - 2) * 0.13;
+      const elevation = 0.54 + ((index % 3) - 1) * 0.07;
+      dir.set(
+        Math.cos(azimuth) * Math.cos(elevation),
+        Math.sin(elevation),
+        Math.sin(azimuth) * Math.cos(elevation),
+      ).normalize();
+      thumbCamera.position.copy(center).addScaledVector(dir, distance);
+      thumbCamera.near = Math.max(0.05, distance * 0.02);
+      thumbCamera.far = distance * 8;
+      thumbCamera.lookAt(center);
+      thumbCamera.updateProjectionMatrix();
+      renderer.render(thumbScene, thumbCamera);
+      try {
+        map[part.id] = renderer.domElement.toDataURL('image/png');
+      } catch (error) {
+        /* tainted canvas — skip this entry */
+      }
+      thumbScene.remove(model);
+      model.traverse((node) => {
+        if (node.geometry) node.geometry.dispose();
+      });
+    });
+
+    renderer.dispose();
+    window.__PART_THUMBS = map;
+    window.dispatchEvent(new CustomEvent('shipyard:thumbs-ready', { detail: map }));
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Scene boot                                                          */
   /* ------------------------------------------------------------------ */
 
@@ -1154,6 +1234,33 @@ import { createSkyTexture } from '../src/textures.js';
           ring.rotation.set(Math.PI / 2 + index * 0.34, index * 0.22, index * 0.18);
           group.add(ring);
         }
+
+        // Data packets ride the outermost flow ring: each dot is a small
+        // emissive bead whose orbital phase advances at its own rate, so the
+        // stream reads as continuous telemetry rather than a spinning cage.
+        const packets = new THREE.Group();
+        const packetGeometry = new THREE.SphereGeometry(0.17, 6, 6);
+        for (let i = 0; i < 48; i += 1) {
+          const radius = 24 + (i % 3) * 4;
+          const phase = (i / 48) * TAU * 3;
+          const bead = new THREE.Mesh(
+            packetGeometry,
+            new THREE.MeshBasicMaterial({
+              color: i % 7 === 0 ? 0xffb466 : 0x9ff6ff,
+              transparent: true,
+              opacity: 0.9,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              toneMapped: false,
+            }),
+          );
+          bead.position.set(Math.cos(phase) * radius, Math.sin(phase * 1.7) * 1.5, Math.sin(phase) * radius);
+          bead.userData.phase = phase;
+          bead.userData.radius = radius;
+          packets.add(bead);
+        }
+        packets.userData.isPackets = true;
+        group.add(packets);
         group.position.set(0, 1, 6);
         scene.add(group);
         refitFx.simRings = group;
@@ -1285,9 +1392,22 @@ import { createSkyTexture } from '../src/textures.js';
       if (refitFx.simRings && refitFx.simRings.visible) {
         refitFx.simRings.rotation.y += dt * 0.5;
         refitFx.simRings.children.forEach((ring, index) => {
+          if (ring.userData && ring.userData.isPackets) return;
           ring.rotation.z += dt * (0.2 + index * 0.12);
           ring.material.opacity = 0.26 + Math.sin(seconds * 1.8 + index) * 0.12;
         });
+        const packets = refitFx.simRings.children.find((child) => child.userData && child.userData.isPackets);
+        if (packets) {
+          packets.children.forEach((bead) => {
+            const phase = bead.userData.phase + seconds * (0.9 + (bead.userData.radius - 24) * 0.22);
+            bead.position.set(
+              Math.cos(phase) * bead.userData.radius,
+              Math.sin(phase * 1.7) * 1.5,
+              Math.sin(phase) * bead.userData.radius,
+            );
+            bead.material.opacity = 0.55 + Math.sin(phase * 3) * 0.35;
+          });
+        }
       }
     }
 
@@ -1873,6 +1993,8 @@ import { createSkyTexture } from '../src/textures.js';
       if (dockTitle) dockTitle.textContent = '正在引导 NX-07 入坞';
       if (dockCopy) dockCopy.textContent = '远距引导完成 · 正在捕获进坞航道';
     }, introCollapseDelay);
+
+    window.setTimeout(() => renderPartThumbnails(app), 1600);
 
     requestAnimationFrame((now) => {
       lastFrame = now;

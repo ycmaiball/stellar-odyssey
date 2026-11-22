@@ -3702,3 +3702,19 @@ body.launch-cockpit .launch-fp-hud { transform: none; }
 .launch-overlay.is-v5 .launch-fp-hud,
 .launch-overlay.is-v5.launch-cockpit .launch-fp-hud,
 body.launch-cockpit .launch-fp-hud { transform: none !important; }
+
+/* Part cards now carry a real 3D render: one oblique, matte-metal preview
+   per catalogue entry. The image lives inside the existing 54px square so
+   the title and stats keep their own column. */
+.part-card { grid-template-columns: 58px minmax(0, 1fr); }
+.part-thumb { aspect-ratio: 1; min-height: 0; align-self: stretch; }
+.part-thumb__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: saturate(1.04) contrast(1.03);
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.part-card.is-locked .part-thumb__img { filter: grayscale(.55) brightness(.74) saturate(.8); }

@@ -1934,6 +1934,86 @@ function buildCore(materials, textures, glowTexture, shipState) {
     }
   }
 
+  // NX-07 v6 silhouette pass: blunt rounded nose, raised stepped command
+  // decks and thin red service lines. Flight and drydock share this geometry,
+  // so both views must stay identical.
+  const noseCap = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), materials.armorMid);
+  noseCap.scale.set(2.38, 1.2, 2.95);
+  noseCap.position.set(0, 0, -24.35);
+  noseCap.name = 'blunt-nose-cap';
+  group.add(noseCap);
+
+  const noseChin = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 14), materials.hullDark);
+  noseChin.scale.set(2.0, 0.55, 2.4);
+  noseChin.position.set(0, -0.78, -24.15);
+  group.add(noseChin);
+
+  const noseLampRing = new THREE.Mesh(
+    new THREE.TorusGeometry(1.15, 0.045, 5, 36),
+    materials.trimCyan,
+  );
+  noseLampRing.position.set(0, 0.1, -26.35);
+  markNoOutline(noseLampRing);
+  group.add(noseLampRing);
+
+  // Three stepped dorsal decks: each one sits higher and narrower than the
+  // last, so the spine reads as layered structure from a low three-quarter
+  // view instead of a single flat plate.
+  const deckSpecs = [
+    { z: 8.2, y: 3.62, w: 5.3, h: 0.44, len: 10.6, material: materials.armorMid },
+    { z: 7.6, y: 4.02, w: 4.1, h: 0.4, len: 8.4, material: materials.armorLight },
+    { z: 6.9, y: 4.38, w: 2.9, h: 0.34, len: 6.0, material: materials.armorWarm },
+  ];
+  deckSpecs.forEach((spec, index) => {
+    const deck = new THREE.Mesh(
+      new THREE.BoxGeometry(spec.w, spec.h, spec.len),
+      spec.material,
+    );
+    deck.position.set(0, spec.y, spec.z);
+    deck.name = `dorsal-deck-${index + 1}`;
+    group.add(deck);
+
+    const spineLine = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.05, spec.len * 0.86),
+      materials.trimRed,
+    );
+    spineLine.position.set(0, spec.y + spec.h * 0.5 + 0.02, spec.z);
+    markNoOutline(spineLine);
+    group.add(spineLine);
+
+    [-1, 1].forEach((side) => {
+      const sideLine = new THREE.Mesh(
+        new THREE.BoxGeometry(0.06, 0.05, spec.len * 0.72),
+        materials.trimDim,
+      );
+      sideLine.position.set(side * spec.w * 0.46, spec.y + spec.h * 0.5 + 0.015, spec.z);
+      markNoOutline(sideLine);
+      group.add(sideLine);
+    });
+  });
+
+  // Mirrored red flank runs follow the actual hull stations, so the line hugs
+  // the armour instead of floating as a straight cylinder.
+  [-1, 1].forEach((side) => {
+    const points = [];
+    for (let i = 0; i < 14; i += 1) {
+      const z = -16.5 + (i / 13) * 31.5;
+      const station = stationAt(z);
+      points.push(new THREE.Vector3(
+        side * station.w * 1.035,
+        (station.cy || 0) + 0.3,
+        z,
+      ));
+    }
+    const run = new THREE.Mesh(
+      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 64, 0.045, 5, false),
+      materials.trimRed,
+    );
+    run.name = side < 0 ? 'flank-run-port' : 'flank-run-starboard';
+    markNoOutline(run);
+    group.add(run);
+  });
+
   // A warm central tail light and the aft engineering ring.
   const tailRing = new THREE.Mesh(
     new THREE.TorusGeometry(1.25, 0.16, 6, 24),
@@ -1984,7 +2064,7 @@ function buildCanopy(materials, glowTexture) {
     new THREE.SphereGeometry(1, 40, 20, 0, TAU, 0, Math.PI / 2),
     materials.glass,
   );
-  dome.scale.set(3.2, 2.8, 7.0);
+  dome.scale.set(3.34, 2.94, 7.12);
   dome.position.set(0, 3.08, -8.8);
   group.add(dome);
 
@@ -1992,7 +2072,7 @@ function buildCanopy(materials, glowTexture) {
     new THREE.SphereGeometry(1, 30, 14, 0, TAU, 0, Math.PI / 2),
     materials.glassInner,
   );
-  innerShell.scale.set(2.85, 2.45, 6.55);
+  innerShell.scale.set(2.98, 2.58, 6.66);
   innerShell.position.set(0, 3.11, -8.8);
   innerShell.userData.noPick = true;
   group.add(innerShell);
@@ -2428,6 +2508,27 @@ function buildEngine(side, materials, glowTexture, exhaustTexture, shipState) {
     }
     group.add(inlay);
   });
+
+  // Twin red service strips lie tight along the nacelle crown, with a small
+  // cyan collar at the exhaust: the only warm accents on an otherwise cold
+  // drive assembly.
+  [-1.5, 1.5].forEach((x) => {
+    const strip = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.055, 8.6),
+      materials.trimRed,
+    );
+    strip.position.set(x, 2.28, 0.15);
+    strip.rotation.z = x * 0.02;
+    markNoOutline(strip);
+    group.add(strip);
+  });
+  const exhaustCyan = new THREE.Mesh(
+    new THREE.TorusGeometry(2.32, 0.05, 5, 48),
+    materials.trimCyan,
+  );
+  exhaustCyan.position.z = 7.1;
+  markNoOutline(exhaustCyan);
+  group.add(exhaustCyan);
 
   // Dorsal service pipes and their clamps.
   [-0.9, 0.9].forEach((x) => {
@@ -3215,6 +3316,7 @@ export function createShip() {
     trimCyan: makeBasicMaterial('#92efff'),
     trimAmber: makeBasicMaterial('#ffbe7a'),
     trimDim: makeBasicMaterial('#56889b', { transparent: true, opacity: 0.6 }),
+    trimRed: makeBasicMaterial('#ff5d46'),
     panelLine: new THREE.MeshStandardMaterial({
       color: 0x020306,
       metalness: 0.9,
