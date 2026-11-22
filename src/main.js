@@ -931,7 +931,7 @@ function finalizeBoot(failed) {
       window.history.replaceState({}, document.title, cleanUrl);
       window.setTimeout(() => {
         document.body.classList.remove('is-launch-arrival');
-      }, 1100);
+      }, 2100);
     }, 1000);
   };
 

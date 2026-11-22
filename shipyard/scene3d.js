@@ -41,6 +41,8 @@ import { createSkyTexture } from '../src/textures.js';
   const tempVecB = new THREE.Vector3();
   const tempVecC = new THREE.Vector3();
   const launchCockpitPosition = new THREE.Vector3();
+  const launchNosePoint = new THREE.Vector3();
+  let launchOverlayEl = null;
   const launchCockpitQuaternion = new THREE.Quaternion();
   const launchExternalQuaternion = new THREE.Quaternion();
 
@@ -1624,7 +1626,9 @@ import { createSkyTexture } from '../src/textures.js';
       camera.lookAt(cameraTarget);
       launchExternalQuaternion.copy(camera.quaternion);
 
-      const blend = easeInOutCubic(clamp((raw - 0.08) / 0.34, 0, 1));
+      /* Hold the establishing shot long enough for the shockwave HUD to
+         read, then hand over to the cockpit in one continuous move. */
+      const blend = easeInOutCubic(clamp((raw - 0.36) / 0.3, 0, 1));
       launchCockpitBlend = blend;
       document.body.classList.toggle('launch-cockpit', blend > 0.2);
       const fpSpeed = document.getElementById('launch-fp-speed');
@@ -1660,6 +1664,23 @@ import { createSkyTexture } from '../src/textures.js';
           camera.fov = nextFov;
           camera.updateProjectionMatrix();
         }
+      }
+
+      /* Shockwave HUD anchors to the real ship nose, then drifts to the
+         screen centre as the shoulder camera hands over to the cockpit. */
+      if (!launchOverlayEl) launchOverlayEl = document.getElementById('launch-overlay');
+      if (launchOverlayEl) {
+        launchNosePoint.set(0, 2.4, -25);
+        ship.root.localToWorld(launchNosePoint);
+        launchNosePoint.project(camera);
+        const viewW = window.innerWidth;
+        const viewH = window.innerHeight;
+        const lock = Math.max(0, 1 - blend * 2.6);
+        const anchorX = lerp(viewW / 2, (launchNosePoint.x * 0.5 + 0.5) * viewW, lock);
+        const anchorY = lerp(viewH * 0.54, (-launchNosePoint.y * 0.5 + 0.5) * viewH, lock);
+        launchOverlayEl.style.setProperty('--ax', `${anchorX.toFixed(1)}px`);
+        launchOverlayEl.style.setProperty('--ay', `${anchorY.toFixed(1)}px`);
+        launchOverlayEl.style.setProperty('--spd', warpLevel.toFixed(3));
       }
 
       if (launchField) {

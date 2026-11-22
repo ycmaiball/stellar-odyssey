@@ -413,27 +413,49 @@
     </div>
   </section>
 
-  <div id="launch-overlay" class="launch-overlay" aria-hidden="true">
+  <div id="launch-overlay" class="launch-overlay is-v5" aria-hidden="true" style="--ax: 50%; --ay: 54%; --spd: 0;">
     <div id="launch-streaks" class="launch-streaks" aria-hidden="true"></div>
     <div class="launch-warp" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="launch-flash" aria-hidden="true"></div>
     <div class="launch-vignette" aria-hidden="true"></div>
-    <div class="launch-content">
-      <span class="launch-kicker">NX-07 / LIGHT-SPEED TEST</span>
-      <h2>光速启动</h2>
-      <p id="launch-status">正在计算曲率包络…</p>
-      <div class="launch-readout">
-        <span><b id="launch-stat-propulsion">0</b><small>推进效率</small></span>
-        <span><b id="launch-stat-score">0.0</b><small>综合评分</small></span>
-        <span><b id="launch-stat-rating">C</b><small>综合评级</small></span>
+    <div id="launch-shockwave" class="launch-shockwave" aria-hidden="true">
+      <svg class="launch-rings" viewBox="0 0 800 800" aria-hidden="true">
+        <circle class="launch-ring launch-ring--inner" cx="400" cy="400" r="118"></circle>
+        <circle class="launch-ring launch-ring--mid" cx="400" cy="400" r="198"></circle>
+        <circle class="launch-ring launch-ring--outer" cx="400" cy="400" r="278"></circle>
+        <circle class="launch-ring launch-ticks" cx="400" cy="400" r="262"></circle>
+        <circle class="launch-sweep" cx="400" cy="400" r="238"></circle>
+      </svg>
+      <div class="launch-metric launch-metric--prop">
+        <b id="launch-stat-propulsion">0</b><small>推进效率</small>
       </div>
-      <button id="btn-skip-launch" type="button" class="btn btn-ghost">跳过 <span>SKIP</span></button>
+      <div class="launch-metric launch-metric--slots">
+        <b id="launch-stat-slots">0</b><small>槽位就位</small>
+      </div>
+      <div class="launch-metric launch-metric--core">
+        <b>8 / 8</b><small>核心链路</small>
+      </div>
+      <div class="launch-core">
+        <span class="launch-core__cap">CORE RATING</span>
+        <b class="launch-core__rating" id="launch-stat-rating">C</b>
+        <span class="launch-core__score"><b id="launch-stat-score">0.0</b><i>/100</i></span>
+      </div>
+      <h2 class="launch-shock-title"><span>光</span><span>速</span><span>启</span><span>动</span></h2>
+      <p id="launch-status" class="launch-shock-status">正在计算曲率包络…</p>
     </div>
     <div class="launch-fp-hud" aria-hidden="true">
       <span class="launch-fp-hud__kicker">QUANTUM CRUISE / 曲率巡航</span>
-      <strong><span id="launch-fp-speed">0.000</span><em>c</em></strong>
+      <div class="launch-speed-core">
+        <span class="launch-speed-core__halo"></span>
+        <span class="launch-speed-core__ring"></span>
+        <strong><span id="launch-fp-speed">0.000</span><em>c</em></strong>
+      </div>
       <span class="launch-fp-hud__sub">NX-07 HELIOS · INTERSTELLAR TRANSIT</span>
     </div>
+    <button id="btn-skip-launch" type="button" class="launch-trigger">
+      <span class="launch-trigger__kicker">SECOND BURN / 二次推进</span>
+      <span>跳过冲刺 <i>→</i></span>
+    </button>
   </div>
 
   <script src="../src/progression.js"></script>

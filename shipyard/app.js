@@ -498,6 +498,7 @@
   let hangarFocus = null;
   let launchTimer = 0;
   let launchWarpTimer = 0;
+  let launchArmTimer = 0;
   let launchActive = false;
   let launchNavigated = false;
   const FLIGHT_URL = '../index.html?from=shipyard&launch=1';
@@ -2675,7 +2676,17 @@
     const launchRating = $('#launch-stat-rating');
     if (launchPropulsion) launchPropulsion.textContent = stats.propulsion.toFixed(0);
     if (launchScore) launchScore.textContent = stats.score.toFixed(1);
-    if (launchRating) launchRating.textContent = stats.rating;
+    if (launchRating) {
+      launchRating.textContent = stats.rating;
+      launchRating.setAttribute('class', `launch-core__rating grade-${stats.rating}`);
+    }
+    const launchSlots = $('#launch-stat-slots');
+    if (launchSlots) launchSlots.textContent = `${document.querySelectorAll('.slot:not(.is-empty)').length} / 62`;
+    overlay.style.setProperty('--ax', '50%');
+    overlay.style.setProperty('--ay', '54%');
+    overlay.classList.remove('is-armed');
+    window.clearTimeout(launchArmTimer);
+    launchArmTimer = window.setTimeout(() => overlay.classList.add('is-armed'), 1500);
 
     launchNavigated = false;
     launchActive = true;
@@ -2708,6 +2719,7 @@
     launchActive = false;
     window.clearTimeout(launchTimer);
     window.clearTimeout(launchWarpTimer);
+    window.clearTimeout(launchArmTimer);
     const overlay = $('#launch-overlay');
     if (skipped && overlay) overlay.classList.add('is-warping');
     navigateToFlight();
