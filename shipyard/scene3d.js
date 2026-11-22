@@ -25,8 +25,6 @@ import { createSkyTexture } from '../src/textures.js';
   const skipDock = document.getElementById('btn-skip-dock');
   const sceneStatus = document.getElementById('scene-status');
   const decomposeButton = document.getElementById('btn-decompose');
-  const decorToggle = document.getElementById('btn-decor-toggle');
-  const decorPanel = document.getElementById('decor-panel');
 
   const TAU = Math.PI * 2;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -1900,14 +1898,6 @@ import { createSkyTexture } from '../src/textures.js';
           ship.setExploded(exploded);
           decomposeButton.setAttribute('aria-pressed', String(exploded));
           decomposeButton.textContent = exploded ? '合拢检查' : '分解检查';
-        });
-      }
-      if (decorToggle && decorPanel) {
-        decorToggle.addEventListener('click', () => {
-          const collapsed = decorPanel.classList.toggle('is-collapsed');
-          decorToggle.setAttribute('aria-expanded', String(!collapsed));
-          decorToggle.textContent = collapsed ? '装饰' : '收起装饰';
-          requestAnimationFrame(layoutSlots);
         });
       }
       if (skipDock) {

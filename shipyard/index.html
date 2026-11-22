@@ -96,7 +96,6 @@
             <button id="btn-drawer" type="button" class="mini-btn mobile-only">零件库</button>
             <div class="core-counter"><b id="core-filled">0</b><span>/ 8 核心槽</span></div>
             <button id="btn-decompose" type="button" class="mini-btn" aria-pressed="false">分解检查</button>
-            <button id="btn-decor-toggle" type="button" class="mini-btn" aria-expanded="true">建造记录</button>
             <button id="btn-clear-ship" type="button" class="mini-btn">清空</button>
           </div>
         </div>
@@ -221,29 +220,6 @@
             <span><i class="stage-dot"></i> 点击部位 · 拖拽装配 · 右键移除</span>
             <span>62 SLOTS / 8 CORE + 54 DECOR</span>
           </div>
-        </div>
-
-        <div id="decor-panel" class="decor-panel timeline-panel">
-          <div class="decor-head">
-            <div>
-              <span class="kicker">BUILD TIMELINE / ARC RAIL</span>
-              <h3>建造时序</h3>
-              <p class="timeline-current" id="timeline-current">当前 · 初始构型</p>
-            </div>
-            <div class="timeline-meta">
-              <span class="decor-meta"><b id="decor-filled">0</b><span>/ 54 装饰</span></span>
-              <button id="btn-timeline-undo" class="mini-btn" type="button">回退一步</button>
-            </div>
-          </div>
-          <div class="timeline-viewport">
-            <svg id="timeline-track" class="timeline-track" viewBox="0 0 1000 150" preserveAspectRatio="none" aria-hidden="true">
-              <path id="timeline-path" d=""/>
-              <path id="timeline-path-glow" d=""/>
-            </svg>
-            <div id="timeline-nodes" class="timeline-nodes" aria-label="建造时序轨道"></div>
-            <div class="timeline-empty" id="timeline-empty">还没有建造记录 · 从零件库装入第一个零件，时序轨道会亮起来</div>
-          </div>
-          <p class="timeline-hint">拖拽节点调序 · 点击任意节点回退到那一刻 · 装饰从零件库装入时会自动落到空位</p>
         </div>
 
         <div id="refit-delta" class="refit-delta" aria-live="polite">
