@@ -41,6 +41,10 @@
       </div>
       <p class="topbar-tagline">挑零件，装飞船，看它能跑多快</p>
       <nav class="topbar-actions" aria-label="装配台操作">
+        <div class="refit-mode" role="group" aria-label="装配模式">
+          <button type="button" class="refit-mode__btn is-active" data-refit-mode="build" aria-pressed="true">自由拼装</button>
+          <button type="button" class="refit-mode__btn" data-refit-mode="sim" aria-pressed="false">全速推演</button>
+        </div>
         <div class="yard-wallet" title="任务积分 / 累计可用余额">
           <span class="yard-wallet__kicker">CREDITS</span>
           <b id="yard-credits-value">300</b><span class="yard-wallet__unit">CR</span>
@@ -68,7 +72,12 @@
             <button id="btn-drawer-close" type="button" class="icon-btn mobile-only" aria-label="收起零件库">×</button>
           </div>
         </div>
-        <p class="panel-sub">点击快速装配，或拖拽零件到目标槽位。</p>
+        <p class="panel-sub">点击舰体部位打开专属零件库，或把零件拖到目标槽位。</p>
+        <div id="library-focus" class="library-focus" hidden>
+          <span class="library-focus__kicker">SLOT LINK / 部位联动</span>
+          <b id="library-focus-label">引擎</b>
+          <button id="library-focus-clear" class="library-focus__clear" type="button" aria-label="退出部位聚焦">×</button>
+        </div>
         <div id="library-list" class="library-list"></div>
         <div class="library-foot">
           <span>7 大类 / 28 个零件</span>
@@ -87,7 +96,7 @@
             <button id="btn-drawer" type="button" class="mini-btn mobile-only">零件库</button>
             <div class="core-counter"><b id="core-filled">0</b><span>/ 8 核心槽</span></div>
             <button id="btn-decompose" type="button" class="mini-btn" aria-pressed="false">分解检查</button>
-            <button id="btn-decor-toggle" type="button" class="mini-btn" aria-expanded="false">装饰</button>
+            <button id="btn-decor-toggle" type="button" class="mini-btn" aria-expanded="true">建造记录</button>
             <button id="btn-clear-ship" type="button" class="mini-btn">清空</button>
           </div>
         </div>
@@ -95,6 +104,16 @@
         <div id="ship-stage" class="ship-stage">
           <canvas id="assembly-canvas" class="assembly-canvas" aria-label="NX-07 三维装配视口"></canvas>
           <div class="stage-ruler stage-ruler--top" aria-hidden="true"><span>00</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+          <div id="guide-ring" class="guide-ring" aria-hidden="true">
+            <svg class="guide-ring__svg" viewBox="0 0 320 320">
+              <circle class="guide-ring__outer" cx="160" cy="160" r="152"/>
+              <circle class="guide-ring__inner" cx="160" cy="160" r="128"/>
+              <circle id="guide-ring-sweep" class="guide-ring__sweep" cx="160" cy="160" r="152"/>
+              <circle id="guide-ring-arc" class="guide-ring__arc" cx="160" cy="160" r="141"/>
+              <g id="guide-ring-ticks" class="guide-ring__ticks"></g>
+            </svg>
+            <span class="guide-ring__label"><i></i><span id="guide-ring-label">GUIDE RING / 待机</span></span>
+          </div>
           <div class="stage-coords" aria-hidden="true">SECTOR 07 / ORBITAL DRYDOCK</div>
 
           <div class="scene-badge" aria-hidden="true">
@@ -199,20 +218,32 @@
           </div>
 
           <div class="stage-footer">
-            <span><i class="stage-dot"></i> 拖拽高亮 · 右键移除</span>
+            <span><i class="stage-dot"></i> 点击部位 · 拖拽装配 · 右键移除</span>
             <span>62 SLOTS / 8 CORE + 54 DECOR</span>
           </div>
         </div>
 
-        <div id="decor-panel" class="decor-panel is-collapsed">
+        <div id="decor-panel" class="decor-panel timeline-panel">
           <div class="decor-head">
             <div>
-              <span class="kicker">DECOR MATRIX / 54 SOCKETS</span>
-              <h3>装饰矩阵</h3>
+              <span class="kicker">BUILD TIMELINE / ARC RAIL</span>
+              <h3>建造时序</h3>
+              <p class="timeline-current" id="timeline-current">当前 · 初始构型</p>
             </div>
-            <div class="decor-meta"><b id="decor-filled">0</b><span>/ 54 已装</span></div>
+            <div class="timeline-meta">
+              <span class="decor-meta"><b id="decor-filled">0</b><span>/ 54 装饰</span></span>
+              <button id="btn-timeline-undo" class="mini-btn" type="button">回退一步</button>
+            </div>
           </div>
-          <div id="decor-grid" class="decor-grid"></div>
+          <div class="timeline-viewport">
+            <svg id="timeline-track" class="timeline-track" viewBox="0 0 1000 150" preserveAspectRatio="none" aria-hidden="true">
+              <path id="timeline-path" d=""/>
+              <path id="timeline-path-glow" d=""/>
+            </svg>
+            <div id="timeline-nodes" class="timeline-nodes" aria-label="建造时序轨道"></div>
+            <div class="timeline-empty" id="timeline-empty">还没有建造记录 · 从零件库装入第一个零件，时序轨道会亮起来</div>
+          </div>
+          <p class="timeline-hint">拖拽节点调序 · 点击任意节点回退到那一刻 · 装饰从零件库装入时会自动落到空位</p>
         </div>
 
         <div id="refit-delta" class="refit-delta" aria-live="polite">
@@ -231,39 +262,62 @@
           <span class="live-pill"><i></i>LIVE</span>
         </div>
 
-        <div class="rating-block">
-          <div id="rating-letter" class="rating-letter grade-S">S</div>
-          <div class="rating-copy">
-            <span class="rating-label">综合评级 / RATING</span>
-            <div class="score-line"><strong id="score-value">0.0</strong><span>/ 100</span></div>
-            <span id="speed-chip" class="speed-chip">巡航状态</span>
+        <div class="holo-stage">
+          <div class="holo-sphere" id="holo-sphere">
+            <div class="holo-sphere__aura" aria-hidden="true"></div>
+            <svg id="sphere-svg" class="holo-sphere__svg" viewBox="0 0 240 240" role="group" aria-label="性能全息球">
+              <defs>
+                <radialGradient id="sphereCoreGrad" cx="50%" cy="42%" r="60%">
+                  <stop offset="0" stop-color="#f4ffff" stop-opacity=".96"/>
+                  <stop offset=".45" stop-color="#6ce7ff" stop-opacity=".55"/>
+                  <stop offset="1" stop-color="#0a2230" stop-opacity=".9"/>
+                </radialGradient>
+                <filter id="sphereGlow" x="-40%" y="-40%" width="180%" height="180%">
+                  <feGaussianBlur stdDeviation="4" result="b"/>
+                  <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+              <circle class="holo-sphere__halo" cx="120" cy="120" r="104"/>
+              <circle class="holo-sphere__orbit" cx="120" cy="120" r="88"/>
+              <circle class="holo-sphere__orbit holo-sphere__orbit--tilt" cx="120" cy="120" r="72"/>
+              <g id="sphere-sectors" class="holo-sphere__sectors"></g>
+              <circle class="holo-sphere__core" cx="120" cy="120" r="38" fill="url(#sphereCoreGrad)" filter="url(#sphereGlow)"/>
+              <text id="sphere-rating" class="holo-sphere__rating grade-S" x="120" y="116" text-anchor="middle">S</text>
+              <text id="sphere-score" class="holo-sphere__score" x="120" y="136" text-anchor="middle">0.0</text>
+              <text id="sphere-caption" class="holo-sphere__caption" x="120" y="150" text-anchor="middle">综合评级</text>
+              <g id="sphere-labels" class="holo-sphere__labels"></g>
+            </svg>
+            <div class="holo-sphere__readout">
+              <span id="speed-chip" class="speed-chip">巡航状态</span>
+              <span id="sphere-focus-copy" class="sphere-focus-copy">点击扇区定位相关部件</span>
+            </div>
           </div>
         </div>
         <p id="archetype" class="archetype">等待零件接入。</p>
         <p id="refit-advice" class="refit-advice">最值得改：先补齐核心槽位。</p>
 
-        <div class="stat-list">
-          <div class="stat-item" data-stat="propulsion">
-            <div class="stat-top"><span>推进效率 <small>PROPULSION</small></span><strong id="stat-propulsion" class="stat-value">0</strong></div>
-            <div class="bar"><i id="bar-propulsion" class="bar-fill"></i><span class="bar-notch" aria-hidden="true"></span></div>
-            <span id="hint-propulsion" class="stat-hint">上限 120 · 100 可进入光速</span>
+        <div class="stat-chips">
+          <div class="stat-chip" data-stat="propulsion">
+            <span class="stat-chip__label">推进 <small>PROP</small></span>
+            <b id="stat-propulsion" class="stat-value">0</b>
           </div>
-          <div class="stat-item" data-stat="defense">
-            <div class="stat-top"><span>防御 <small>DEFENSE</small></span><strong id="stat-defense" class="stat-value">0</strong></div>
-            <div class="bar"><i id="bar-defense" class="bar-fill"></i></div>
-            <span id="hint-defense" class="stat-hint">船体装甲 × 0.4 + 护盾 × 0.6</span>
+          <div class="stat-chip" data-stat="defense">
+            <span class="stat-chip__label">防御 <small>DEF</small></span>
+            <b id="stat-defense" class="stat-value">0</b>
           </div>
-          <div class="stat-item" data-stat="energy">
-            <div class="stat-top"><span>能耗 <small>ENERGY</small></span><strong id="stat-energy" class="stat-value">0</strong></div>
-            <div class="bar bar--energy"><i id="bar-energy" class="bar-fill"></i></div>
-            <span id="hint-energy" class="stat-hint">能量上限 100</span>
+          <div class="stat-chip" data-stat="energy">
+            <span class="stat-chip__label">能耗 <small>NRG</small></span>
+            <b id="stat-energy" class="stat-value">0</b>
           </div>
-          <div class="stat-item" data-stat="firepower">
-            <div class="stat-top"><span>火力 <small>FIREPOWER</small></span><strong id="stat-firepower" class="stat-value">0</strong></div>
-            <div class="bar"><i id="bar-firepower" class="bar-fill"></i></div>
-            <span id="hint-firepower" class="stat-hint">武器 × 0.8 + 引擎推力 × 0.2</span>
+          <div class="stat-chip" data-stat="firepower">
+            <span class="stat-chip__label">火力 <small>FIRE</small></span>
+            <b id="stat-firepower" class="stat-value">0</b>
           </div>
         </div>
+        <span id="hint-propulsion" class="sr-only">上限 120 · 100 可进入光速</span>
+        <span id="hint-defense" class="sr-only">船体装甲 × 0.4 + 护盾 × 0.6</span>
+        <span id="hint-energy" class="sr-only">能量上限 100</span>
+        <span id="hint-firepower" class="sr-only">武器 × 0.8 + 引擎推力 × 0.2</span>
 
         <div id="energy-warning" class="panel-warning" hidden>能量超载，建议减少武器</div>
         <div id="empty-warning" class="panel-note">还有空槽，装上能更强</div>
@@ -284,7 +338,28 @@
           <span>WEIGHTS: PROP .35 / DEF .30 / FIRE .25 / ENERGY .10</span>
         </div>
       </aside>
+      <svg id="refit-beam" class="refit-beam" aria-hidden="true">
+        <g id="refit-beam-links"></g>
+        <path id="refit-beam-glow" class="refit-beam__glow" d=""/>
+        <path id="refit-beam-line" class="refit-beam__line" d=""/>
+        <circle id="refit-beam-dot" class="refit-beam__dot" r="3.2" cx="0" cy="0"/>
+      </svg>
     </main>
+
+    <div id="sim-overlay" class="sim-overlay" hidden aria-hidden="true">
+      <div class="sim-overlay__scan"></div>
+      <div class="sim-overlay__grid">
+        <div class="sim-stat"><span>推进效率</span><b id="sim-propulsion">0</b><i>PROPULSION</i></div>
+        <div class="sim-stat"><span>防御</span><b id="sim-defense">0</b><i>DEFENSE</i></div>
+        <div class="sim-stat"><span>火力</span><b id="sim-firepower">0</b><i>FIREPOWER</i></div>
+        <div class="sim-stat"><span>能耗</span><b id="sim-energy">0</b><i>ENERGY</i></div>
+      </div>
+      <div class="sim-overlay__verdict">
+        <span id="sim-rating" class="sim-rating grade-S">S</span>
+        <p id="sim-copy">全速推演 · 数据汇聚中</p>
+      </div>
+      <div class="sim-overlay__exit"><button id="btn-sim-exit" class="btn btn-ghost" type="button">返回拼装</button></div>
+    </div>
 
     <footer class="page-footer">
       <span>NX-SHIPYARD · 62 SLOTS · 积分解锁 · 回港检修</span>

@@ -910,10 +910,384 @@ import { createSkyTexture } from '../src/textures.js';
     let pointerLastX = 0;
     let pointerLastY = 0;
     let orbiting = false;
+    let orbitMoved = false;
+    let downX = 0;
+    let downY = 0;
     let lastFrame = performance.now();
     const camState = { theta: 2.22, phi: 0.3, distance: 96 };
     const cameraTarget = new THREE.Vector3(0, 2, 2);
     let slotEls = new Map();
+
+    const refitFx = {
+      focusSlotId: null,
+      focusRing: null,
+      focusLight: new THREE.PointLight(0x6ce7ff, 0, 34, 2),
+      dragCategory: null,
+      hintSprites: [],
+      pulses: [],
+      sparks: [],
+      waves: [],
+      simMode: false,
+      simRings: null,
+      starBoost: 1,
+      camTween: null,
+    };
+    scene.add(refitFx.focusLight);
+    const glowTexture = makeGlowTexture();
+    const lightBase = { key: 2.9, rim: 3.2, under: 620, ambient: 0.38, hemisphere: 0.55 };
+
+    function slotCategoryOf(slotId) {
+      if (slotId === 'hull') return 'hull';
+      return String(slotId).replace(/-\d+$/, '');
+    }
+
+    function applyLightDim(factor) {
+      key.intensity = lightBase.key * factor;
+      rim.intensity = lightBase.rim * factor;
+      under.intensity = lightBase.under * factor;
+      ambient.intensity = lightBase.ambient * Math.max(0.55, factor);
+      hemisphere.intensity = lightBase.hemisphere * Math.max(0.6, factor);
+    }
+
+    function worldPosOf(record) {
+      if (!record) return new THREE.Vector3();
+      ship.root.updateMatrixWorld(true);
+      return record.group.getWorldPosition(new THREE.Vector3());
+    }
+
+    function clearPulseFx() {
+      refitFx.pulses.forEach((item) => {
+        scene.remove(item.sprite);
+        item.sprite.material.dispose();
+      });
+      refitFx.pulses = [];
+    }
+
+    function pulseConduit(slotId) {
+      const origin = mounts.get(slotId);
+      if (!origin) return;
+      clearPulseFx();
+      const originPos = worldPosOf(origin);
+      const neighbours = [];
+      mounts.forEach((record) => {
+        if (record === origin || record.slotId.startsWith('decor')) return;
+        const distance = worldPosOf(record).distanceTo(originPos);
+        neighbours.push({ record, distance });
+      });
+      neighbours.sort((a, b) => a.distance - b.distance);
+      neighbours.slice(0, 3).forEach((entry, index) => {
+        const to = worldPosOf(entry.record);
+        for (let step = 0; step < 4; step += 1) {
+          const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: glowTexture,
+            color: index === 0 ? 0xd9fbff : 0x6ce7ff,
+            transparent: true,
+            opacity: 0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            toneMapped: false,
+          }));
+          sprite.scale.setScalar(index === 0 ? 1.9 : 1.4);
+          scene.add(sprite);
+          refitFx.pulses.push({
+            sprite,
+            from: originPos.clone(),
+            to: to.clone(),
+            offset: step / 4,
+            age: 0,
+            life: 2.4,
+            speed: 1.15 + index * 0.18,
+          });
+        }
+      });
+    }
+
+    function focusSlot(slotId) {
+      const next = slotId && mounts.has(slotId) ? slotId : null;
+      refitFx.focusSlotId = next;
+      if (refitFx.focusRing) {
+        scene.remove(refitFx.focusRing);
+        refitFx.focusRing.geometry.dispose();
+        refitFx.focusRing.material.dispose();
+        refitFx.focusRing = null;
+      }
+      applyLightDim(next ? 0.42 : (refitFx.simMode ? 0.5 : 1));
+      if (!next) {
+        refitFx.focusLight.intensity = 0;
+        clearPulseFx();
+        return;
+      }
+      const record = mounts.get(next);
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(2.6, 0.055, 6, 56),
+        new THREE.MeshBasicMaterial({
+          color: 0x6ce7ff,
+          transparent: true,
+          opacity: 0.9,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          toneMapped: false,
+        }),
+      );
+      scene.add(ring);
+      refitFx.focusRing = ring;
+      refitFx.focusLight.intensity = 320;
+      pulseConduit(next);
+      if (record) refitFx.focusLight.position.copy(worldPosOf(record).add(new THREE.Vector3(0, 1.5, 0)));
+    }
+
+    function setDragHints(category) {
+      refitFx.hintSprites.forEach((sprite) => {
+        scene.remove(sprite);
+        sprite.material.dispose();
+      });
+      refitFx.hintSprites = [];
+      refitFx.dragCategory = category || null;
+      refitFx.starBoost = category ? 2.8 : (refitFx.simMode ? 3.4 : 1);
+      if (!category) return;
+      let budget = category === 'decor' ? 18 : 99;
+      mounts.forEach((record) => {
+        if (budget <= 0) return;
+        if (slotCategoryOf(record.slotId) !== category) return;
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: glowTexture,
+          color: 0xffb466,
+          transparent: true,
+          opacity: 0.7,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          toneMapped: false,
+        }));
+        sprite.position.copy(worldPosOf(record));
+        sprite.userData.baseScale = category === 'decor' ? 4.4 : 7.4;
+        sprite.scale.setScalar(sprite.userData.baseScale);
+        scene.add(sprite);
+        refitFx.hintSprites.push(sprite);
+        budget -= 1;
+      });
+    }
+
+    function getMountScreen(slotId) {
+      const record = mounts.get(slotId);
+      if (!record || !record.group || !renderer) return null;
+      const point = new THREE.Vector3();
+      record.group.getWorldPosition(point);
+      point.project(camera);
+      if (point.z > 1 || !Number.isFinite(point.x)) return null;
+      const rect = renderer.domElement.getBoundingClientRect();
+      return {
+        x: rect.left + (point.x * 0.5 + 0.5) * rect.width,
+        y: rect.top + (-point.y * 0.5 + 0.5) * rect.height,
+      };
+    }
+
+    function conflictAt(slotId) {
+      const record = mounts.get(slotId) || mounts.get('hull');
+      const origin = worldPosOf(record);
+      for (let index = 0; index < 16; index += 1) {
+        const mesh = new THREE.Mesh(
+          new THREE.TetrahedronGeometry(0.18 + Math.random() * 0.12),
+          new THREE.MeshBasicMaterial({
+            color: index % 3 === 0 ? 0xff9a6a : 0xff5a3c,
+            transparent: true,
+            opacity: 0.95,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            toneMapped: false,
+          }),
+        );
+        mesh.position.copy(origin);
+        scene.add(mesh);
+        refitFx.sparks.push({
+          mesh,
+          velocity: new THREE.Vector3(
+            (Math.random() - 0.5) * 26,
+            Math.random() * 20 + 2,
+            (Math.random() - 0.5) * 26,
+          ),
+          age: 0,
+          life: 0.55 + Math.random() * 0.35,
+        });
+      }
+    }
+
+    function celebrate() {
+      const center = new THREE.Vector3(0, 2, 4);
+      for (let index = 0; index < 3; index += 1) {
+        const mesh = new THREE.Mesh(
+          new THREE.TorusGeometry(12, 0.22 - index * 0.04, 6, 96),
+          new THREE.MeshBasicMaterial({
+            color: index === 1 ? 0xffb466 : 0x9ff6ff,
+            transparent: true,
+            opacity: 0.85,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            toneMapped: false,
+          }),
+        );
+        mesh.position.copy(center);
+        mesh.rotation.set(Math.PI / 2 + index * 0.12, index * 0.06, 0);
+        scene.add(mesh);
+        refitFx.waves.push({ mesh, age: -index * 0.14, life: 1.5 });
+      }
+    }
+
+    function setSimMode(active) {
+      refitFx.simMode = Boolean(active);
+      if (!refitFx.simRings) {
+        const group = new THREE.Group();
+        const colors = [0x6ce7ff, 0xffb466, 0x9ff6ff];
+        for (let index = 0; index < 3; index += 1) {
+          const ring = new THREE.Mesh(
+            new THREE.TorusGeometry(24 + index * 4, 0.09, 5, 96),
+            new THREE.MeshBasicMaterial({
+              color: colors[index],
+              transparent: true,
+              opacity: 0.4 - index * 0.08,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              toneMapped: false,
+            }),
+          );
+          ring.rotation.set(Math.PI / 2 + index * 0.34, index * 0.22, index * 0.18);
+          group.add(ring);
+        }
+        group.position.set(0, 1, 6);
+        scene.add(group);
+        refitFx.simRings = group;
+      }
+      refitFx.simRings.visible = refitFx.simMode;
+      refitFx.starBoost = refitFx.simMode ? 3.4 : 1;
+      applyLightDim(refitFx.simMode ? 0.5 : (refitFx.focusSlotId ? 0.42 : 1));
+    }
+
+    function faceSlot(slotId) {
+      const record = mounts.get(slotId);
+      if (!record) return;
+      const position = worldPosOf(record);
+      const targetTheta = Math.atan2(position.x - cameraTarget.x, position.z - cameraTarget.z);
+      const delta = Math.atan2(Math.sin(targetTheta - camState.theta), Math.cos(targetTheta - camState.theta));
+      refitFx.camTween = {
+        age: 0,
+        duration: 0.85,
+        fromTheta: camState.theta,
+        toTheta: camState.theta + delta,
+        fromPhi: camState.phi,
+        toPhi: clamp(0.3 + (position.y - 2) * 0.004, 0.02, 0.7),
+        fromDistance: camState.distance,
+        toDistance: clamp(camState.distance, 74, 104),
+      };
+    }
+
+    function pickSlotAt(clientX, clientY) {
+      if (!sceneReady || launching) return;
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const pointer = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObject(ship.root, true);
+      for (const hit of hits) {
+        let node = hit.object;
+        let slotId = null;
+        while (node) {
+          if (node.userData && node.userData.slotId) {
+            slotId = node.userData.slotId;
+            break;
+          }
+          node = node.parent;
+        }
+        if (slotId) {
+          window.dispatchEvent(new CustomEvent('shipyard:pick-slot', { detail: { slotId } }));
+          return;
+        }
+      }
+      window.dispatchEvent(new CustomEvent('shipyard:pick-slot', { detail: { slotId: null } }));
+    }
+
+    function updateRefitFx(now, dt) {
+      const seconds = now * 0.001;
+      stars.rotation.y += dt * 0.006 * refitFx.starBoost;
+      if (refitFx.camTween) {
+        const tween = refitFx.camTween;
+        tween.age += dt;
+        const k = easeInOutCubic(clamp(tween.age / tween.duration, 0, 1));
+        camState.theta = lerp(tween.fromTheta, tween.toTheta, k);
+        camState.phi = lerp(tween.fromPhi, tween.toPhi, k);
+        camState.distance = lerp(tween.fromDistance, tween.toDistance, k);
+        if (tween.age >= tween.duration) refitFx.camTween = null;
+      } else if (refitFx.simMode && !docking && !launching) {
+        camState.theta += dt * 0.16;
+      }
+      if (refitFx.focusRing && refitFx.focusSlotId) {
+        const record = mounts.get(refitFx.focusSlotId);
+        if (record) {
+          refitFx.focusRing.position.copy(worldPosOf(record));
+          refitFx.focusRing.lookAt(camera.position);
+          refitFx.focusRing.rotation.z = seconds * 0.42;
+          const pulse = 1 + Math.sin(seconds * 3.1) * 0.06;
+          refitFx.focusRing.scale.setScalar(pulse);
+          refitFx.focusLight.position.copy(refitFx.focusRing.position).add(new THREE.Vector3(0, 1.4, 0));
+          refitFx.focusLight.intensity = 250 + Math.sin(seconds * 2.4) * 70;
+        }
+      }
+      refitFx.pulses.forEach((item) => {
+        item.age += dt;
+        const progress = (item.age * item.speed + item.offset) % 1;
+        item.sprite.position.lerpVectors(item.from, item.to, progress);
+        const fade = clamp(1 - item.age / item.life, 0, 1);
+        item.sprite.material.opacity = Math.sin(progress * Math.PI) * 0.9 * fade;
+      });
+      refitFx.pulses = refitFx.pulses.filter((item) => {
+        if (item.age < item.life) return true;
+        scene.remove(item.sprite);
+        item.sprite.material.dispose();
+        return false;
+      });
+      refitFx.hintSprites.forEach((sprite, index) => {
+        const wave = 0.5 + Math.sin(seconds * 5.4 + index * 0.5) * 0.5;
+        sprite.scale.setScalar((sprite.userData.baseScale || 7.4) * (1 + wave * 0.22));
+        sprite.material.opacity = 0.35 + wave * 0.4;
+      });
+      refitFx.sparks.forEach((item) => {
+        item.age += dt;
+        item.mesh.position.addScaledVector(item.velocity, dt);
+        item.velocity.multiplyScalar(0.94);
+        item.mesh.rotation.x += dt * 5;
+        item.mesh.rotation.y += dt * 4;
+        item.mesh.material.opacity = clamp(1 - item.age / item.life, 0, 1);
+      });
+      refitFx.sparks = refitFx.sparks.filter((item) => {
+        if (item.age < item.life) return true;
+        scene.remove(item.mesh);
+        item.mesh.geometry.dispose();
+        item.mesh.material.dispose();
+        return false;
+      });
+      refitFx.waves.forEach((item) => {
+        item.age += dt;
+        const progress = clamp(item.age / item.life, 0, 1);
+        item.mesh.scale.setScalar(lerp(0.35, 3.4, easeOutCubic(progress)));
+        item.mesh.material.opacity = (1 - progress) * 0.8;
+      });
+      refitFx.waves = refitFx.waves.filter((item) => {
+        if (item.age < item.life) return true;
+        scene.remove(item.mesh);
+        item.mesh.geometry.dispose();
+        item.mesh.material.dispose();
+        return false;
+      });
+      if (refitFx.simRings && refitFx.simRings.visible) {
+        refitFx.simRings.rotation.y += dt * 0.5;
+        refitFx.simRings.children.forEach((ring, index) => {
+          ring.rotation.z += dt * (0.2 + index * 0.12);
+          ring.material.opacity = 0.26 + Math.sin(seconds * 1.8 + index) * 0.12;
+        });
+      }
+    }
 
     const fullLayout = {
       cockpit: [50, 17],
@@ -1044,6 +1418,7 @@ import { createSkyTexture } from '../src/textures.js';
       const model = buildPartModel(part);
       if (!model) return;
       record.group.add(model);
+      model.traverse((node) => { if (node.isMesh) node.userData.slotId = slotId; });
       if (animate && !reducedMotion) {
         const entry = ejectVector(slotId).multiplyScalar(9);
         tweenTransform(model, entry, new THREE.Vector3(0, 0, 0), 0.18, 1, 70, 430);
@@ -1081,6 +1456,7 @@ import { createSkyTexture } from '../src/textures.js';
       const model = buildPartModel(part);
       if (!model) return;
       record.group.add(model);
+      model.traverse((node) => { if (node.isMesh) node.userData.slotId = slotId; });
       if (animate && !reducedMotion) {
         tweenTransform(model, new THREE.Vector3(0, 1.2, 1.6), new THREE.Vector3(0, 0, 0), 0.12, 1, 50, 340);
         spawnInstallBurst(record);
@@ -1324,6 +1700,9 @@ import { createSkyTexture } from '../src/textures.js';
       canvas.addEventListener('pointerdown', (event) => {
         if (!sceneReady || launching || event.button !== 0) return;
         orbiting = true;
+        orbitMoved = false;
+        downX = event.clientX;
+        downY = event.clientY;
         pointerId = event.pointerId;
         pointerLastX = event.clientX;
         pointerLastY = event.clientY;
@@ -1338,6 +1717,7 @@ import { createSkyTexture } from '../src/textures.js';
         const dy = event.clientY - pointerLastY;
         pointerLastX = event.clientX;
         pointerLastY = event.clientY;
+        if (Math.hypot(event.clientX - downX, event.clientY - downY) > 5) orbitMoved = true;
         camState.theta -= dx * 0.005;
         camState.phi = clamp(camState.phi - dy * 0.0035, -0.05, 1.05);
         lastInteraction = performance.now();
@@ -1350,6 +1730,7 @@ import { createSkyTexture } from '../src/textures.js';
         pointerId = null;
         canvas.style.cursor = 'grab';
         lastInteraction = performance.now();
+        if (event && !orbitMoved) pickSlotAt(event.clientX, event.clientY);
       };
       window.addEventListener('pointerup', stopOrbit);
       window.addEventListener('pointercancel', stopOrbit);
@@ -1416,6 +1797,7 @@ import { createSkyTexture } from '../src/textures.js';
       lastFrame = now;
       updateDock(now);
       updateTweens(now);
+      updateRefitFx(now, dt);
       if (launching) {
         updateLaunch(now, dt);
       } else {
@@ -1494,6 +1876,14 @@ import { createSkyTexture } from '../src/textures.js';
       sync: () => syncFromSnapshot(app.getSnapshot(), false),
       finishDock: () => finishDock(true),
       launchToFlight,
+      focusSlot,
+      getMountScreen,
+      setDragHints,
+      conflictAt,
+      celebrate,
+      setSimMode,
+      faceSlot,
+      pulseConduit,
     };
   }
 

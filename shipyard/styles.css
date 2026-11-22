@@ -2681,3 +2681,673 @@ body.scene-docking .scene-badge {
   .repair-card { padding: 20px 18px; }
   .repair-card h2 { font-size: 24px; }
 }
+
+
+/* ================================================================== */
+/* REFIT EXPERIENCE v4 — part link, guide ring, holo sphere, timeline  */
+/* ================================================================== */
+
+/* --- topbar mode switch ------------------------------------------- */
+.refit-mode {
+  display: inline-flex;
+  align-items: stretch;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  background: rgba(4, 12, 19, 0.72);
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+.refit-mode__btn {
+  position: relative;
+  padding: 7px 13px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.refit-mode__btn + .refit-mode__btn { border-left: 1px solid var(--line); }
+.refit-mode__btn:hover { color: var(--primary-soft); }
+.refit-mode__btn.is-active {
+  color: #031019;
+  background: linear-gradient(135deg, var(--primary), #9af1ff);
+  box-shadow: 0 0 18px rgba(108, 231, 255, 0.32);
+}
+.refit-mode__btn.is-active[data-refit-mode="sim"] {
+  color: #1a0b02;
+  background: linear-gradient(135deg, var(--accent), #ffd7ae);
+  box-shadow: 0 0 18px rgba(255, 180, 102, 0.34);
+}
+
+/* --- library focus banner ----------------------------------------- */
+.library-focus {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 4px;
+  padding: 9px 11px 9px 13px;
+  border: 1px solid var(--primary-dim);
+  background:
+    linear-gradient(90deg, rgba(108, 231, 255, 0.14), rgba(108, 231, 255, 0.02) 62%),
+    rgba(6, 15, 22, 0.9);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%);
+  animation: focusBeamIn 0.34s var(--ease);
+}
+.library-focus::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--primary), transparent);
+  box-shadow: 0 0 12px var(--primary);
+}
+.library-focus__kicker {
+  color: var(--primary);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.library-focus b {
+  flex: 1;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.library-focus__clear {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.library-focus__clear:hover { color: var(--ink); border-color: var(--primary-dim); }
+@keyframes focusBeamIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* focus dim: only the selected slot / matching parts stay bright */
+body.is-slot-focus .functional-slots .slot { opacity: 0.42; filter: saturate(0.6); }
+body.is-slot-focus .functional-slots .slot.is-focused {
+  opacity: 1;
+  filter: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px rgba(108, 231, 255, 0.4), 0 0 26px rgba(108, 231, 255, 0.22);
+}
+body.is-slot-focus .part-group { opacity: 0.35; transition: opacity 0.3s ease; }
+body.is-slot-focus .part-group.is-focus-group { opacity: 1; }
+body.is-slot-focus .timeline-panel { opacity: 0.55; }
+
+/* --- guide ring ---------------------------------------------------- */
+.guide-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(86%, 620px);
+  aspect-ratio: 1;
+  translate: -50% -54%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.9;
+  transition: opacity 0.4s ease;
+}
+.guide-ring__svg { width: 100%; height: 100%; overflow: visible; }
+.guide-ring__outer {
+  fill: none;
+  stroke: rgba(108, 231, 255, 0.22);
+  stroke-width: 1;
+  stroke-dasharray: 2 7;
+}
+.guide-ring__inner {
+  fill: none;
+  stroke: rgba(108, 231, 255, 0.1);
+  stroke-width: 1;
+}
+.guide-ring__sweep {
+  fill: none;
+  stroke: url(#none);
+  stroke: rgba(108, 231, 255, 0.55);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-dasharray: 90 865;
+  transform-origin: 160px 160px;
+  animation: guideSweep 7s linear infinite;
+  filter: drop-shadow(0 0 5px rgba(108, 231, 255, 0.55));
+}
+.guide-ring__arc {
+  fill: none;
+  stroke: rgba(108, 231, 255, 0.3);
+  stroke-width: 6;
+  stroke-linecap: butt;
+  stroke-dasharray: 0 1000;
+  transition: stroke-dasharray 0.5s var(--ease), stroke 0.3s ease;
+}
+.guide-ring__ticks line { stroke: rgba(108, 231, 255, 0.34); stroke-width: 1; }
+.guide-ring__ticks line.is-major { stroke: rgba(108, 231, 255, 0.7); stroke-width: 1.4; }
+.guide-ring__label {
+  position: absolute;
+  left: 50%;
+  bottom: 5%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  background: rgba(4, 11, 17, 0.68);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.13em;
+  white-space: nowrap;
+}
+.guide-ring__label i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+}
+@keyframes guideSweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+body.is-part-dragging .guide-ring { opacity: 1; }
+body.is-part-dragging .guide-ring__arc { stroke: var(--accent); }
+body.is-part-dragging .guide-ring__label { color: var(--accent-soft); border-color: var(--accent-dim); }
+body.is-part-dragging .guide-ring__sweep { animation-duration: 2.4s; }
+body.is-slot-focus .guide-ring { opacity: 1; }
+body.is-slot-focus .guide-ring__arc { stroke-dasharray: 78 1000; }
+body.is-slot-focus .guide-ring__label { color: var(--primary); }
+body.is-sim-mode .guide-ring { opacity: 0.4; }
+
+/* --- hollow ghost previews on empty slots ------------------------- */
+.slot .slot-ghost {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0.16;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.slot .slot-ghost svg { width: 54%; height: 54%; }
+.slot:hover .slot-ghost { opacity: 0.3; }
+body.is-part-dragging .slot .slot-ghost { opacity: 0.1; }
+body[data-drag-category] .slot[data-category] .slot-ghost { opacity: 0.1; }
+body[data-drag-category="engine"] .slot[data-category="engine"] .slot-ghost,
+body[data-drag-category="shield"] .slot[data-category="shield"] .slot-ghost,
+body[data-drag-category="weapon"] .slot[data-category="weapon"] .slot-ghost,
+body[data-drag-category="cockpit"] .slot[data-category="cockpit"] .slot-ghost,
+body[data-drag-category="tail"] .slot[data-category="tail"] .slot-ghost {
+  opacity: 0.45;
+  animation: ghostBreathe 1.8s ease-in-out infinite;
+}
+body[data-drag-category="decor"] .decor-cell .decor-plus { opacity: 0.9; }
+@keyframes ghostBreathe {
+  0%, 100% { opacity: 0.24; }
+  50% { opacity: 0.5; }
+}
+
+/* --- beam from ship to telemetry ---------------------------------- */
+.refit-beam {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 6;
+  overflow: visible;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.refit-beam.is-active { opacity: 1; }
+.refit-beam__line {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 1;
+  filter: drop-shadow(0 0 4px rgba(108, 231, 255, 0.8));
+}
+.refit-beam__glow {
+  fill: none;
+  stroke: rgba(108, 231, 255, 0.28);
+  stroke-width: 5;
+  stroke-dasharray: 4 12;
+  animation: beamFlow 1.4s linear infinite;
+}
+.refit-beam__dot {
+  fill: var(--primary-soft);
+  filter: drop-shadow(0 0 6px var(--primary));
+}
+.refit-beam__link {
+  fill: none;
+  stroke: rgba(108, 231, 255, 0.3);
+  stroke-width: 1;
+  stroke-dasharray: 3 9;
+  animation: beamFlow 2.2s linear infinite;
+}
+@keyframes beamFlow { to { stroke-dashoffset: -32; } }
+
+/* --- holo sphere --------------------------------------------------- */
+.holo-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin: 8px 0 2px;
+  min-height: 236px;
+}
+.holo-sphere {
+  position: relative;
+  width: 100%;
+  max-width: 268px;
+  margin: 0 auto;
+}
+.holo-sphere__aura {
+  position: absolute;
+  inset: 6% 4% 12%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 46%, rgba(108, 231, 255, 0.16), rgba(108, 231, 255, 0.03) 55%, transparent 72%);
+  filter: blur(6px);
+  animation: auraBreathe 5.4s ease-in-out infinite;
+}
+.holo-sphere__svg { position: relative; display: block; width: 100%; height: auto; overflow: visible; }
+.holo-sphere__halo { fill: none; stroke: rgba(108, 231, 255, 0.12); stroke-width: 1; stroke-dasharray: 1 6; }
+.holo-sphere__orbit { fill: none; stroke: rgba(108, 231, 255, 0.16); stroke-width: 1; }
+.holo-sphere__orbit--tilt { stroke-dasharray: 32 14; animation: orbitSpin 16s linear infinite; transform-origin: 120px 120px; }
+.holo-sphere__core { stroke: rgba(198, 248, 255, 0.65); stroke-width: 1; }
+.holo-sphere__rating {
+  fill: var(--ink);
+  font-family: var(--display, var(--sans));
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  paint-order: stroke;
+  stroke: rgba(3, 16, 25, 0.55);
+  stroke-width: 2px;
+}
+.holo-sphere__score {
+  fill: var(--primary-soft);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+.holo-sphere__caption {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 6.6px;
+  letter-spacing: 0.12em;
+}
+.holo-sphere__labels text {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 7.4px;
+  letter-spacing: 0.08em;
+}
+.sphere-sector {
+  fill: none;
+  stroke-width: 20;
+  stroke-linecap: butt;
+  cursor: pointer;
+  transition: stroke-width 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
+  opacity: 0.92;
+}
+.sphere-sector:hover, .sphere-sector.is-focused {
+  stroke-width: 27;
+  opacity: 1;
+  filter: drop-shadow(0 0 7px currentColor);
+}
+.sphere-sector.is-empty { opacity: 0.22; }
+.holo-sphere__readout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 24px;
+  margin-top: -2px;
+}
+.sphere-focus-copy {
+  color: var(--muted-dim);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@keyframes auraBreathe {
+  0%, 100% { opacity: 0.7; transform: scale(0.98); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+@keyframes orbitSpin { to { transform: rotate(360deg); } }
+
+/* stat chips replace the old bars */
+.stat-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+.stat-chip {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: rgba(6, 15, 23, 0.7);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+  cursor: default;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.stat-chip:hover { border-color: var(--line-strong); background: rgba(10, 24, 35, 0.85); }
+.stat-chip__label {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.stat-chip__label small { color: var(--muted-dim); font-family: var(--mono); font-size: 7px; letter-spacing: 0.1em; }
+.stat-chip .stat-value { color: var(--ink); font-family: var(--mono); font-size: 15px; font-weight: 600; }
+.stat-chip.is-warn .stat-value { color: var(--accent); text-shadow: 0 0 12px rgba(255, 180, 102, 0.4); }
+.stat-chip.is-over .stat-value { color: #ff8a6a; text-shadow: 0 0 12px rgba(255, 106, 72, 0.5); }
+.stat-chip.is-hot { animation: chipPulse 0.6s var(--ease); }
+@keyframes chipPulse {
+  0% { border-color: var(--primary); box-shadow: 0 0 0 0 rgba(108, 231, 255, 0.45); }
+  100% { border-color: var(--line); box-shadow: 0 0 0 10px rgba(108, 231, 255, 0); }
+}
+
+/* --- build timeline ------------------------------------------------ */
+.timeline-panel { border-top: 1px solid var(--line); }
+.timeline-meta { display: flex; align-items: center; gap: 10px; }
+.timeline-viewport {
+  position: relative;
+  height: 152px;
+  margin: 4px 0 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-dim) transparent;
+}
+.timeline-track {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 150px;
+  overflow: visible;
+}
+#timeline-path {
+  fill: none;
+  stroke: rgba(108, 231, 255, 0.3);
+  stroke-width: 1.2;
+  stroke-dasharray: 2 6;
+}
+#timeline-path-glow {
+  fill: none;
+  stroke: rgba(108, 231, 255, 0.08);
+  stroke-width: 10;
+}
+.timeline-nodes {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 150px;
+}
+.timeline-node {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  translate: -50% -50%;
+  border: 1px solid var(--line-strong);
+  background: rgba(6, 16, 24, 0.92);
+  color: var(--ink-soft);
+  cursor: pointer;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  transition: transform 0.18s var(--ease), border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
+}
+.timeline-node svg { width: 24px; height: 24px; }
+.timeline-node__no {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  color: var(--muted-dim);
+  font-family: var(--mono);
+  font-size: 6.5px;
+  letter-spacing: 0.04em;
+}
+.timeline-node:hover { border-color: var(--primary-dim); transform: translate(-50%, -50%) scale(1.08); }
+.timeline-node.is-current {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px rgba(108, 231, 255, 0.4), 0 0 18px rgba(108, 231, 255, 0.24);
+}
+.timeline-node.is-future { opacity: 0.32; border-style: dashed; }
+.timeline-node.is-dragging { opacity: 0.75; cursor: grabbing; z-index: 4; }
+.timeline-node.is-drop-target { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-dim), 0 0 16px rgba(255, 180, 102, 0.3); }
+.timeline-empty {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 52%;
+  transform: translateY(-50%);
+  text-align: center;
+  color: var(--muted-dim);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+.timeline-hint {
+  margin: 0;
+  color: var(--muted-dim);
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+}
+
+/* --- simulation overlay ------------------------------------------- */
+.sim-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  padding: 96px 6vw 42px;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(10, 30, 44, 0.2), rgba(2, 7, 12, 0.72) 62%),
+    rgba(2, 7, 12, 0.42);
+  backdrop-filter: saturate(120%);
+  opacity: 0;
+  animation: simFadeIn 0.5s var(--ease) forwards;
+}
+.sim-overlay[hidden] { display: none; }
+.sim-overlay__scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(108, 231, 255, 0.05) 50%, transparent);
+  background-size: 100% 220px;
+  animation: simScan 5.5s linear infinite;
+}
+.sim-overlay__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(10px, 2vw, 26px);
+  align-self: start;
+}
+.sim-stat {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px 13px;
+  border-left: 1px solid rgba(108, 231, 255, 0.4);
+  background: linear-gradient(90deg, rgba(108, 231, 255, 0.1), transparent 70%);
+}
+.sim-stat span {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+.sim-stat b {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: clamp(26px, 3.4vw, 46px);
+  font-weight: 600;
+  line-height: 1;
+  text-shadow: 0 0 26px rgba(108, 231, 255, 0.35);
+}
+.sim-stat i {
+  color: var(--muted-dim);
+  font-family: var(--mono);
+  font-size: 7.5px;
+  font-style: normal;
+  letter-spacing: 0.18em;
+}
+.sim-overlay__verdict {
+  justify-self: center;
+  text-align: center;
+  max-width: 620px;
+}
+.sim-rating {
+  display: inline-grid;
+  place-items: center;
+  width: 92px;
+  height: 92px;
+  border: 1px solid var(--primary-dim);
+  border-radius: 50%;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 44px;
+  font-weight: 700;
+  box-shadow: 0 0 40px rgba(108, 231, 255, 0.25), inset 0 0 24px rgba(108, 231, 255, 0.18);
+  animation: verdictPulse 2.6s ease-in-out infinite;
+}
+.sim-overlay__verdict p {
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+}
+.sim-overlay__exit { position: absolute; left: 50%; bottom: 26px; translate: -50% 0; }
+@keyframes simFadeIn { to { opacity: 1; } }
+@keyframes simScan { from { background-position: 0 -220px; } to { background-position: 0 120%; } }
+@keyframes verdictPulse {
+  0%, 100% { box-shadow: 0 0 34px rgba(108, 231, 255, 0.2), inset 0 0 20px rgba(108, 231, 255, 0.14); }
+  50% { box-shadow: 0 0 54px rgba(108, 231, 255, 0.34), inset 0 0 30px rgba(108, 231, 255, 0.22); }
+}
+
+/* sim mode collapses the workbench chrome */
+body.is-refit-sim .library,
+body.is-refit-sim #telemetry,
+body.is-refit-sim .timeline-panel { opacity: 0.12; pointer-events: none; filter: saturate(0.4); }
+body.is-refit-sim .workbench { grid-template-columns: minmax(0, 1fr); }
+body.is-refit-sim .assembly-canvas { filter: saturate(1.1) contrast(1.04); }
+body.is-refit-sim .ship-stage { box-shadow: inset 0 0 90px rgba(108, 231, 255, 0.08); }
+
+/* traffic light tone for the sphere when overloaded */
+body.is-overload .holo-sphere__aura {
+  background: radial-gradient(circle at 50% 46%, rgba(255, 120, 80, 0.22), transparent 64%);
+}
+body.is-overload .sphere-sector { filter: saturate(1.2); }
+
+/* --- responsive ---------------------------------------------------- */
+@media (max-width: 1180px) {
+  .sim-overlay { padding: 88px 4vw 36px; }
+  .sim-overlay__grid { gap: 12px; }
+}
+@media (max-width: 900px) {
+  .refit-mode { order: 3; width: 100%; }
+  .refit-mode__btn { flex: 1; }
+  .topbar { grid-template-columns: minmax(0, 1fr) auto; }
+  .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .holo-stage { min-height: 200px; }
+  .holo-sphere { max-width: 220px; }
+  .timeline-viewport { height: 128px; }
+  .sim-overlay { padding: 78px 18px 30px; }
+  .sim-overlay__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sim-stat b { font-size: 30px; }
+  .sim-rating { width: 72px; height: 72px; font-size: 34px; }
+}
+@media (max-width: 560px) {
+  .stat-chips { gap: 4px; }
+  .guide-ring { width: 94%; }
+  .timeline-node { width: 38px; height: 38px; }
+  .timeline-node svg { width: 20px; height: 20px; }
+  .sim-overlay__verdict p { font-size: 10px; letter-spacing: 0.08em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-ring__sweep,
+  .holo-sphere__aura,
+  .holo-sphere__orbit--tilt,
+  .sim-overlay__scan,
+  .sim-rating,
+  .refit-beam__glow,
+  .refit-beam__link { animation: none !important; }
+  .sim-overlay { animation: none; opacity: 1; }
+}
+
+/* beam overlay anchor */
+.workbench { position: relative; }
+.functional-slots .slot.is-conflict { border-color: #ff6a48; animation: slotConflict 0.4s ease; }
+.functional-slots .slot.is-conflict .slot-ghost { opacity: 0.5; }
+.stat-chip.is-focused { border-color: var(--primary-dim); background: rgba(12, 30, 42, 0.9); }
+@keyframes slotConflict {
+  0%, 100% { translate: 0 0; }
+  20% { translate: -3px 0; }
+  40% { translate: 3px 0; }
+  60% { translate: -2px 0; }
+  80% { translate: 2px 0; }
+}
+
+/* sim dim overrides entry animations; ring sized above the timeline */
+body.is-refit-sim .library,
+body.is-refit-sim #telemetry,
+body.is-refit-sim .timeline-panel {
+  animation: none !important;
+  opacity: 0.12 !important;
+  filter: saturate(0.4) !important;
+  pointer-events: none !important;
+}
+@media (min-width: 901px) {
+  .ship-stage .guide-ring { width: min(46%, 520px); top: 44%; translate: -50% -60%; }
+}
+
+/* empty-slot ghost previews + drag hint halo */
+.functional-slots .slot.is-empty .slot-ghost { z-index: 0; opacity: 0.18; }
+.functional-slots .slot.is-empty .slot-top,
+.functional-slots .slot.is-empty .slot-empty-copy { position: relative; z-index: 1; }
+.functional-slots .slot.is-hint {
+  border-color: var(--accent);
+  animation: slotHint 1.5s ease-in-out infinite;
+}
+@keyframes slotHint {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 178, 94, 0.35), 0 0 14px rgba(255, 178, 94, 0.18); }
+  50% { box-shadow: 0 0 0 1px rgba(255, 178, 94, 0.7), 0 0 26px rgba(255, 178, 94, 0.38); }
+}
+
+/* sim mode: kill transitions so the dim lands immediately in every flow */
+body.is-refit-sim .library,
+body.is-refit-sim #telemetry {
+  transition: none !important;
+  animation: none !important;
+  opacity: 0.12 !important;
+}
+
+/* timeline current step caption */
+.timeline-current { margin: 4px 0 0; font-size: 11px; letter-spacing: .04em; color: rgba(108,231,255,.82); }
+.timeline-node { cursor: grab; }
+.timeline-node:active { cursor: grabbing; }

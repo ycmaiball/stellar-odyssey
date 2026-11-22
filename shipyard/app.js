@@ -762,12 +762,7 @@
     statIDs.forEach((key) => {
       const value = stats[key];
       const valueNode = $(`#stat-${key}`);
-      const barNode = $(`#bar-${key}`);
-      if (valueNode) valueNode.textContent = value.toFixed(key === 'propulsion' || key === 'defense' || key === 'firepower' ? 0 : 0);
-      if (barNode) {
-        const width = clamp((value / maxValues[key]) * 100, 0, 100);
-        barNode.style.width = `${width}%`;
-      }
+      if (valueNode) valueNode.textContent = value.toFixed(0);
     });
 
     const energyItem = $('.stat-item[data-stat="energy"]');
@@ -784,12 +779,12 @@
         : `余量 ${round1(perf.energyLimit - stats.energy)} / ${perf.energyLimit}`;
     }
 
-    const scoreNode = $('#score-value');
+    const scoreNode = $('#sphere-score');
     if (scoreNode) scoreNode.textContent = stats.score.toFixed(1);
-    const ratingNode = $('#rating-letter');
+    const ratingNode = $('#sphere-rating');
     if (ratingNode) {
       ratingNode.textContent = stats.rating;
-      ratingNode.className = `rating-letter grade-${stats.rating}`;
+      ratingNode.setAttribute('class', `holo-sphere__rating grade-${stats.rating}`);
     }
     const archetypeNode = $('#archetype');
     if (archetypeNode) archetypeNode.textContent = commentaryFor(stats);
@@ -825,6 +820,11 @@
     if (launchMeta) launchMeta.textContent = `推进效率 ${stats.propulsion.toFixed(0)} / 100 · 综合 ${stats.rating}`;
     const launchButton = $('#btn-launch');
     if (launchButton) launchButton.classList.toggle('is-ready', stats.lightspeed);
+
+    renderHoloSphere(stats);
+    syncStatChips(stats, previous);
+    document.body.classList.toggle('is-overload', stats.overload);
+    if (refitMode === 'sim') updateSimOverlay(stats);
 
     const coreFilled = CORE_SLOTS.filter((slot) => partInSlot(state, slot.id)).length;
     const coreCount = $('#core-filled');
@@ -993,7 +993,9 @@
         </span>
       </button>`;
     }
-    return `<button type="button" class="slot" data-slot-id="${slot.id}" data-category="${slot.category}" style="${style}" aria-label="${escapeHTML(slot.label)} 空槽，点击选择零件">
+    const ghostPart = (PARTS_BY_CATEGORY.get(slot.category) || [])[0];
+    return `<button type="button" class="slot is-empty" data-slot-id="${slot.id}" data-category="${slot.category}" style="${style}" aria-label="${escapeHTML(slot.label)} 空槽，点击选择零件">
+      <span class="slot-ghost" aria-hidden="true">${ghostPart ? partSvg(ghostPart) : ''}</span>
       <span class="slot-top"><span class="slot-no">${String(index + 1).padStart(2, '0')}</span><span class="slot-cat">${category.en}</span></span>
       <span class="slot-empty-copy"><b>${escapeHTML(slot.label)}</b>拖拽或点击安装</span>
     </button>`;
@@ -1009,22 +1011,8 @@
     }
   }
 
-  function renderDecor(changedSlot = null) {
-    const grid = $('#decor-grid');
-    if (!grid) return;
-    grid.innerHTML = DECOR_SLOTS.map((slot) => {
-      const part = partInSlot(state, slot.id);
-      if (!part) {
-        return `<button type="button" class="decor-cell" data-slot-id="${slot.id}" data-category="decor" title="${escapeHTML(slot.label)} · 空" aria-label="${escapeHTML(slot.label)} 空槽"><span class="decor-plus">+</span></button>`;
-      }
-      return `<button type="button" class="decor-cell is-filled" data-slot-id="${slot.id}" data-category="decor" title="${escapeHTML(part.name)} · ${escapeHTML(slot.label)}" aria-label="${escapeHTML(slot.label)} 已装 ${escapeHTML(part.name)}">${partSvg(part)}</button>`;
-    }).join('');
-    if (changedSlot) {
-      const el = grid.querySelector(`[data-slot-id="${changedSlot}"]`);
-      if (el) el.classList.add('just-installed');
-    }
-    const count = $('#decor-filled');
-    if (count) count.textContent = String(DECOR_COUNT - computeStats(state).emptyDecor);
+  function renderDecor() {
+    renderTimeline();
   }
 
   function markHullCard() {
@@ -1053,9 +1041,10 @@
 
   function renderAll(flash = false, changedSlot = null) {
     renderSlots(changedSlot && changedSlot.startsWith('decor') ? null : changedSlot);
-    renderDecor(changedSlot && changedSlot.startsWith('decor') ? changedSlot : null);
+    renderTimeline();
     updateHullDisplay();
     updateStatsUI(flash);
+    applyFocusVisuals();
     saveDraft();
     try {
       window.dispatchEvent(new CustomEvent('shipyard:state', {
@@ -1298,6 +1287,8 @@
       markModified();
       renderAll(true);
       showToast(`船体更换为 ${part.name}。`);
+      recordBuild(part.name, part.id, 'hull');
+      sceneCall('pulseConduit', 'hull');
       if (isMobile()) closeDrawer();
       return;
     }
@@ -1332,10 +1323,14 @@
       showToast('这个零件已经在该槽位。', 'warning');
       return;
     }
+    const beforeStats = computeStats(state);
     state.slots[slotId] = part.id;
     markModified();
     renderAll(true, slotId);
     showToast(`${part.name} 已安装。`);
+    recordBuild(part.name, part.id, slotId);
+    sceneCall('pulseConduit', slotId);
+    maybeCelebrate(beforeStats);
     if (isMobile()) closeDrawer();
   }
 
@@ -1348,6 +1343,8 @@
     markModified();
     renderAll(true, slotId);
     showToast(`已移除 ${part.name}。`);
+    recordBuild(`移除 ${part.name}`, null, slotId);
+    sceneCall('pulseConduit', slotId);
   }
 
   function openSlotPicker(slotId) {
@@ -1406,7 +1403,8 @@
     if (!slot || !event.currentTarget.contains(slot)) return;
     event.preventDefault();
     event.stopPropagation();
-    openSlotPicker(slot.dataset.slotId);
+    if (event.shiftKey) openSlotPicker(slot.dataset.slotId);
+    else focusSlot(slot.dataset.slotId);
   }
 
   function handleSlotContextMenu(event) {
@@ -1438,7 +1436,14 @@
     if (partInSlot(state, cell.dataset.slotId)) removeSlot(cell.dataset.slotId);
   }
 
+  function markHintSlots(category) {
+    $$('.slot.is-hint').forEach((element) => element.classList.remove('is-hint'));
+    if (!category) return;
+    $$(`.slot.is-empty[data-category="${category}"]`).forEach((element) => element.classList.add('is-hint'));
+  }
+
   function clearDropHints() {
+    markHintSlots(null);
     $$('.is-dragover').forEach((element) => element.classList.remove('is-dragover'));
     const stage = $('#ship-drop');
     if (stage) stage.classList.remove('is-hull-over');
@@ -1547,7 +1552,10 @@
   function clearPointerDragVisuals(card) {
     if (card) card.classList.remove('is-drag-source');
     document.body.classList.remove('is-part-dragging');
+    delete document.body.dataset.dragCategory;
     clearDropHints();
+    sceneCall('setDragHints', null);
+    setGuideRing(focusedSlotId ? 'focus' : 'idle');
   }
 
   function finishPointerDrag(event, cancelled = false) {
@@ -1580,6 +1588,11 @@
 
     returnPartDragGhost(drag.ghost, drag.card);
     if (target.kind === 'slot' || target.kind === 'decor') {
+      if (target.kind === 'slot') {
+        sceneCall('conflictAt', target.element.dataset.slotId);
+        target.element.classList.add('is-conflict');
+        window.setTimeout(() => target.element.classList.remove('is-conflict'), 760);
+      }
       showToast(`该槽位只能装${dragCategoryLabel(target.category)}`, 'warning');
     } else if (target.kind === 'stage') {
       showToast('装配画布只接收船体', 'warning');
@@ -1595,6 +1608,10 @@
     drag.ghost = makePartDragGhost(drag.card);
     drag.card.classList.add('is-drag-source');
     document.body.classList.add('is-part-dragging');
+    document.body.dataset.dragCategory = drag.part.category;
+    sceneCall('setDragHints', drag.part.category);
+    markHintSlots(drag.part.category);
+    setGuideRing('drag', dragCategoryLabel(drag.part.category));
     movePartDragGhost(drag.ghost, event.clientX, event.clientY);
   }
 
@@ -2712,14 +2729,14 @@
       const card = event.target.closest('.part-card');
       if (!card) return;
       if (performance.now() < (library.dataset.ignoreClickUntil || 0)) return;
-      installPart(card.dataset.partId);
+      handleLibraryCardActivate(card.dataset.partId);
     });
     library.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
       const card = event.target.closest('.part-card');
       if (!card) return;
       event.preventDefault();
-      installPart(card.dataset.partId);
+      handleLibraryCardActivate(card.dataset.partId);
     });
     library.addEventListener('dragstart', (event) => {
       /* Pointer drag owns the interaction. Block the browser's native
@@ -2884,6 +2901,572 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* 13b. Refit experience v4                                             */
+  /* ------------------------------------------------------------------ */
+
+  const SPHERE_SECTORS = [
+    { key: 'propulsion', label: '推进', en: 'PROPULSION', max: 120, offset: 0 },
+    { key: 'defense', label: '防御', en: 'DEFENSE', max: 120, offset: 1 },
+    { key: 'firepower', label: '火力', en: 'FIREPOWER', max: 120, offset: 2 },
+    { key: 'energy', label: '能耗', en: 'ENERGY', max: 100, offset: 3, invert: true },
+  ];
+  const STAT_CATEGORIES = {
+    propulsion: ['engine'],
+    defense: ['hull', 'shield'],
+    firepower: ['weapon'],
+    energy: ['engine', 'weapon'],
+  };
+
+  let buildHistory = [];
+  let historyCursor = -1;
+  let focusedSlotId = null;
+  let refitMode = 'build';
+  let timelineDrag = null;
+  let beamTimer = 0;
+  let entrySeq = 0;
+
+  function sceneCall(method, ...args) {
+    const scene = window.__SHIPYARD_3D__;
+    if (!scene || typeof scene[method] !== 'function') return null;
+    try {
+      return scene[method](...args);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function snapshotForHistory() {
+    return { hullId: state.hullId, slots: { ...state.slots } };
+  }
+
+  function recordBuild(label, partId, slotId) {
+    const snapshot = snapshotForHistory();
+    entrySeq += 1;
+    const entry = {
+      uid: entrySeq,
+      label,
+      partId: partId || null,
+      slotId: slotId || null,
+      ...snapshot,
+      at: Date.now(),
+    };
+    if (historyCursor < buildHistory.length - 1) {
+      buildHistory = buildHistory.slice(0, historyCursor + 1);
+    }
+    buildHistory.push(entry);
+    while (buildHistory.length > 40) {
+      buildHistory.shift();
+    }
+    historyCursor = buildHistory.length - 1;
+    renderTimeline();
+  }
+
+  function restoreHistory(index) {
+    const entry = buildHistory[index];
+    if (!entry) return;
+    state.hullId = entry.hullId;
+    state.slots = { ...entry.slots };
+    historyCursor = index;
+    markModified();
+    renderAll(true);
+    showToast(`已回退至节点 ${String(index + 1).padStart(2, '0')} · ${entry.label}`);
+  }
+
+  function undoBuild() {
+    if (historyCursor <= 0) {
+      showToast('已经是最早的建造节点。', 'warning');
+      return;
+    }
+    restoreHistory(historyCursor - 1);
+  }
+
+  function timelinePoint(t, width) {
+    const u = 1 - t;
+    return {
+      x: u * u * 30 + 2 * u * t * (width / 2) + t * t * (width - 30),
+      y: u * u * 122 + 2 * u * t * -8 + t * t * 122,
+    };
+  }
+
+  function renderTimeline() {
+    const nodes = $('#timeline-nodes');
+    if (!nodes) return;
+    const track = $('#timeline-track');
+    const viewport = nodes.parentElement;
+    const count = buildHistory.length;
+    const empty = $('#timeline-empty');
+    if (empty) empty.hidden = count > 0;
+    const width = Math.max((viewport ? viewport.clientWidth : 640) - 6, count * 62 + 60);
+    if (track) {
+      track.setAttribute('viewBox', `0 0 ${width} 150`);
+      track.style.width = `${width}px`;
+      const path = `M 30 122 Q ${width / 2} -8 ${width - 30} 122`;
+      $('#timeline-path')?.setAttribute('d', path);
+      $('#timeline-path-glow')?.setAttribute('d', path);
+    }
+    nodes.style.width = `${width}px`;
+    nodes.replaceChildren();
+    buildHistory.forEach((entry, index) => {
+      const point = timelinePoint(count === 1 ? 0.5 : index / Math.max(1, count - 1), width);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `timeline-node${index === historyCursor ? ' is-current' : ''}${index > historyCursor ? ' is-future' : ''}`;
+      button.style.left = `${point.x}px`;
+      button.style.top = `${point.y}px`;
+      button.dataset.historyIndex = String(index);
+      button.title = entry.label;
+      button.setAttribute('aria-label', `建造节点 ${index + 1}：${entry.label}`);
+      const part = entry.partId ? PART_BY_ID.get(entry.partId) : null;
+      button.innerHTML = `<span class="timeline-node__no">${String(index + 1).padStart(2, '0')}</span>${part ? partSvg(part) : ''}`;
+      nodes.append(button);
+    });
+    const currentLabel = $('#timeline-current');
+    if (currentLabel) currentLabel.textContent = `当前 · ${buildHistory[historyCursor]?.label || '初始构型'}`;
+    const countNode = $('#decor-filled');
+    if (countNode) countNode.textContent = String(computeStats(state).counts.decor);
+    const undo = $('#btn-timeline-undo');
+    if (undo) undo.disabled = historyCursor <= 0;
+  }
+
+  function handleTimelinePointerDown(event) {
+    const node = event.target.closest('.timeline-node');
+    if (!node || event.button !== 0) return;
+    timelineDrag = {
+      node,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      moved: false,
+      from: Number(node.dataset.historyIndex),
+    };
+  }
+
+  function handleTimelinePointerMove(event) {
+    const drag = timelineDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (!drag.moved && Math.abs(event.clientX - drag.startX) < 6) return;
+    drag.moved = true;
+    drag.node.classList.add('is-dragging');
+    const list = $$('.timeline-node');
+    $$('.timeline-node').forEach((node) => node.classList.remove('is-drop-target'));
+    let target = drag.from;
+    let best = Infinity;
+    list.forEach((node, index) => {
+      const rect = node.getBoundingClientRect();
+      const distance = Math.abs(event.clientX - (rect.left + rect.width / 2));
+      if (distance < best) {
+        best = distance;
+        target = index;
+      }
+    });
+    drag.to = target;
+    list[target]?.classList.add('is-drop-target');
+  }
+
+  function handleTimelinePointerUp(event) {
+    const drag = timelineDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    timelineDrag = null;
+    drag.node.classList.remove('is-dragging');
+    $$('.timeline-node').forEach((node) => node.classList.remove('is-drop-target'));
+    if (!drag.moved || drag.to === undefined || drag.to === drag.from) return;
+    const currentUid = buildHistory[historyCursor]?.uid;
+    const [entry] = buildHistory.splice(drag.from, 1);
+    buildHistory.splice(drag.to, 0, entry);
+    historyCursor = buildHistory.findIndex((item) => item.uid === currentUid);
+    if (historyCursor < 0) historyCursor = buildHistory.length - 1;
+    renderTimeline();
+    showToast('建造时序已调整 · 可点击任意节点回退。');
+  }
+
+  /* ---- library focus / slot link ----------------------------------- */
+  function focusSlot(slotId) {
+    const slot = SLOT_BY_ID.get(slotId);
+    if (!slot) return;
+    focusedSlotId = slotId;
+    document.body.classList.add('is-slot-focus');
+    document.body.dataset.focusCategory = slot.category;
+    const category = CATEGORY_BY_ID.get(slot.category);
+    const banner = $('#library-focus');
+    const label = $('#library-focus-label');
+    if (banner) banner.hidden = false;
+    if (label) label.textContent = `${slot.label} · ${category ? category.label : ''}零件`;
+    sceneCall('focusSlot', slotId);
+    sceneCall('faceSlot', slotId);
+    applyFocusVisuals();
+    updateBeam();
+    setGuideRing('focus', slot.label);
+    if (isMobile()) openDrawer();
+    else setLibraryRail(false);
+  }
+
+  function clearFocusSlot() {
+    focusedSlotId = null;
+    document.body.classList.remove('is-slot-focus');
+    delete document.body.dataset.focusCategory;
+    const banner = $('#library-focus');
+    if (banner) banner.hidden = true;
+    sceneCall('focusSlot', null);
+    applyFocusVisuals();
+    stopBeam();
+    setGuideRing(refitMode === 'sim' ? 'sim' : 'idle');
+  }
+
+  function applyFocusVisuals() {
+    const focused = Boolean(focusedSlotId);
+    document.body.classList.toggle('is-slot-focus', focused);
+    $$('.functional-slots .slot').forEach((element) => {
+      element.classList.toggle('is-focused', element.dataset.slotId === focusedSlotId);
+    });
+    $$('.part-group').forEach((group) => {
+      const wanted = focused
+        ? group.dataset.group === document.body.dataset.focusCategory
+        : Boolean(document.body.dataset.focusStat && STAT_CATEGORIES[document.body.dataset.focusStat]?.includes(group.dataset.group));
+      group.classList.toggle('is-focus-group', wanted);
+    });
+  }
+
+  function handleLibraryCardActivate(partId) {
+    const part = PART_BY_ID.get(partId);
+    if (!part) return;
+    const slot = focusedSlotId ? SLOT_BY_ID.get(focusedSlotId) : null;
+    if (slot && slot.category === part.category) {
+      installIntoSlot(focusedSlotId, partId);
+      return;
+    }
+    installPart(partId);
+  }
+
+  /* ---- beam from the focused mount to the sphere -------------------- */
+  function stopBeam() {
+    if (beamTimer) window.clearInterval(beamTimer);
+    beamTimer = 0;
+    const beam = $('#refit-beam');
+    if (beam) beam.classList.remove('is-active');
+  }
+
+  function updateBeam() {
+    const beam = $('#refit-beam');
+    if (!beam) return;
+    if (!focusedSlotId) {
+      stopBeam();
+      return;
+    }
+    const workbench = document.querySelector('.workbench');
+    if (!workbench) return;
+    const wbRect = workbench.getBoundingClientRect();
+    const projected = sceneCall('getMountScreen', focusedSlotId);
+    let start = null;
+    if (projected) start = { x: projected.x, y: projected.y };
+    if (!start) {
+      const el = document.querySelector(`.slot[data-slot-id="${focusedSlotId}"]`);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        start = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      }
+    }
+    const sphere = $('#holo-sphere');
+    if (!start || !sphere) return;
+    const target = sphere.getBoundingClientRect();
+    const sx = start.x - wbRect.left;
+    const sy = start.y - wbRect.top;
+    const ex = target.left + target.width * 0.5 - wbRect.left;
+    const ey = target.top + target.height * 0.52 - wbRect.top;
+    const mx = (sx + ex) / 2;
+    const my = Math.min(sy, ey) - Math.abs(ex - sx) * 0.09;
+    const d = `M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+    $('#refit-beam-line')?.setAttribute('d', d);
+    $('#refit-beam-glow')?.setAttribute('d', d);
+    const dot = $('#refit-beam-dot');
+    if (dot) {
+      dot.setAttribute('cx', ex.toFixed(1));
+      dot.setAttribute('cy', ey.toFixed(1));
+    }
+    const links = $('#refit-beam-links');
+    const banner = $('#library-focus');
+    if (links) {
+      links.replaceChildren();
+      if (banner && !banner.hidden) {
+        const rect = banner.getBoundingClientRect();
+        const lx = rect.left + rect.width - wbRect.left;
+        const ly = rect.top + rect.height / 2 - wbRect.top;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('class', 'refit-beam__link');
+        path.setAttribute('d', `M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${(sx + lx) / 2} ${(sy + ly) / 2 + 40} ${lx.toFixed(1)} ${ly.toFixed(1)}`);
+        links.append(path);
+      }
+    }
+    beam.classList.add('is-active');
+    if (!beamTimer) beamTimer = window.setInterval(updateBeam, 180);
+  }
+
+  /* ---- guide ring --------------------------------------------------- */
+  function setGuideRing(mode, label) {
+    const arc = $('#guide-ring-arc');
+    const text = $('#guide-ring-label');
+    const map = {
+      idle: { arc: '0 100', copy: 'GUIDE RING / 待机 · 点击舰体部位' },
+      drag: { arc: '38 100', copy: `GUIDE RING / 装配 ${label || ''}` },
+      focus: { arc: '26 100', copy: `GUIDE RING / ${label || '部位联动'}` },
+      sim: { arc: '100 0', copy: 'GUIDE RING / 全速推演' },
+    };
+    const stateInfo = map[mode] || map.idle;
+    document.body.dataset.guideMode = mode;
+    if (arc) {
+      arc.setAttribute('pathLength', '100');
+      arc.setAttribute('stroke-dasharray', stateInfo.arc);
+    }
+    if (text) text.textContent = stateInfo.copy;
+  }
+
+  function initGuideRing() {
+    const ticks = $('#guide-ring-ticks');
+    if (!ticks || ticks.childElementCount) return;
+    const svgNs = 'http://www.w3.org/2000/svg';
+    for (let index = 0; index < 36; index += 1) {
+      const angle = (index * 10 - 90) * (Math.PI / 180);
+      const inner = index % 3 === 0 ? 138 : 145;
+      const line = document.createElementNS(svgNs, 'line');
+      line.setAttribute('x1', (160 + Math.cos(angle) * inner).toFixed(1));
+      line.setAttribute('y1', (160 + Math.sin(angle) * inner).toFixed(1));
+      line.setAttribute('x2', (160 + Math.cos(angle) * 152).toFixed(1));
+      line.setAttribute('y2', (160 + Math.sin(angle) * 152).toFixed(1));
+      if (index % 3 === 0) line.setAttribute('class', 'is-major');
+      ticks.append(line);
+    }
+    setGuideRing('idle');
+  }
+
+  /* ---- holo sphere --------------------------------------------------- */
+  function sectorRatio(key, stats) {
+    const sector = SPHERE_SECTORS.find((item) => item.key === key);
+    if (!sector) return 0;
+    return clamp(stats[key] / sector.max, 0, 1.6);
+  }
+
+  function sectorColor(key, ratio) {
+    if (key === 'energy') {
+      if (ratio > 1.02) return '#ff6a48';
+      if (ratio >= 0.86) return '#ffb466';
+      return '#6ce7ff';
+    }
+    if (ratio >= 0.92) return '#b4f8ff';
+    if (ratio >= 0.62) return '#6ce7ff';
+    if (ratio >= 0.3) return '#3fa9c9';
+    return '#2b6f80';
+  }
+
+  function buildHoloSphere() {
+    const group = $('#sphere-sectors');
+    if (!group || group.dataset.built === '1') return;
+    const svgNs = 'http://www.w3.org/2000/svg';
+    SPHERE_SECTORS.forEach((sector, index) => {
+      const circle = document.createElementNS(svgNs, 'circle');
+      circle.setAttribute('cx', '120');
+      circle.setAttribute('cy', '120');
+      circle.setAttribute('r', '76');
+      circle.setAttribute('pathLength', '100');
+      circle.setAttribute('class', 'sphere-sector');
+      circle.setAttribute('stroke-dasharray', '0 100');
+      circle.setAttribute('transform', `rotate(${-90 + index * 90} 120 120)`);
+      circle.dataset.stat = sector.key;
+      circle.setAttribute('role', 'button');
+      circle.setAttribute('tabindex', '0');
+      circle.setAttribute('aria-label', `${sector.label}扇区，点击聚焦相关部件`);
+      circle.addEventListener('click', () => focusStatSector(sector.key));
+      circle.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          focusStatSector(sector.key);
+        }
+      });
+      group.append(circle);
+      const angle = (-90 + index * 90 + 45) * (Math.PI / 180);
+      const label = document.createElementNS(svgNs, 'text');
+      label.setAttribute('x', (120 + Math.cos(angle) * 103).toFixed(1));
+      label.setAttribute('y', (120 + Math.sin(angle) * 103 + 2.4).toFixed(1));
+      label.setAttribute('text-anchor', 'middle');
+      label.textContent = `${sector.label} ${sector.en}`;
+      $('#sphere-labels')?.append(label);
+    });
+    group.dataset.built = '1';
+  }
+
+  function renderHoloSphere(stats) {
+    buildHoloSphere();
+    SPHERE_SECTORS.forEach((sector) => {
+      const circle = document.querySelector(`.sphere-sector[data-stat="${sector.key}"]`);
+      if (!circle) return;
+      const ratio = sectorRatio(sector.key, stats);
+      const length = Math.max(0.6, Math.min(25, ratio * 25));
+      circle.setAttribute('stroke-dasharray', `${length.toFixed(2)} 100`);
+      circle.style.color = sectorColor(sector.key, ratio);
+      circle.setAttribute('stroke', sectorColor(sector.key, ratio));
+      circle.classList.toggle('is-empty', ratio < 0.02);
+    });
+  }
+
+  function focusStatSector(key) {
+    if (document.body.dataset.focusStat === key) {
+      clearStatFocus();
+      return;
+    }
+    const categories = STAT_CATEGORIES[key] || [];
+    document.body.dataset.focusStat = key;
+    document.body.classList.add('is-stat-focus');
+    $$('.sphere-sector').forEach((circle) => circle.classList.toggle('is-focused', circle.dataset.stat === key));
+    $$('.part-group').forEach((group) => group.classList.toggle('is-focus-group', categories.includes(group.dataset.group)));
+    $$('.stat-chip').forEach((chip) => chip.classList.toggle('is-focused', chip.dataset.stat === key));
+    const slotIds = CORE_SLOTS.filter((slot) => categories.includes(slot.category)).map((slot) => slot.id);
+    slotIds.slice(0, 5).forEach((slotId) => sceneCall('pulseConduit', slotId));
+    const copy = $('#sphere-focus-copy');
+    if (copy) copy.textContent = `${SPHERE_SECTORS.find((item) => item.key === key).label} · 关联 ${slotIds.length} 个部件`;
+    if (isMobile()) openDrawer();
+  }
+
+  function clearStatFocus() {
+    delete document.body.dataset.focusStat;
+    document.body.classList.remove('is-stat-focus');
+    $$('.sphere-sector').forEach((circle) => circle.classList.remove('is-focused'));
+    $$('.part-group').forEach((group) => group.classList.toggle('is-focus-group', Boolean(focusedSlotId) && group.dataset.group === document.body.dataset.focusCategory));
+    $$('.stat-chip').forEach((chip) => chip.classList.remove('is-focused'));
+    const copy = $('#sphere-focus-copy');
+    if (copy) copy.textContent = '点击扇区定位相关部件';
+  }
+
+  function syncStatChips(stats, previous) {
+    $$('.stat-chip').forEach((chip) => {
+      const key = chip.dataset.stat;
+      if (!key) return;
+      const max = key === 'energy' ? 100 : 120;
+      const ratio = stats[key] / max;
+      chip.classList.toggle('is-warn', key !== 'energy' && ratio >= 0.75);
+      chip.classList.toggle('is-over', key === 'energy' && stats.overload);
+      if (previous && Math.abs(stats[key] - previous[key]) >= 1) {
+        chip.classList.remove('is-hot');
+        void chip.offsetWidth;
+        chip.classList.add('is-hot');
+      }
+    });
+  }
+
+  /* ---- dual mode ----------------------------------------------------- */
+  function updateSimOverlay(stats) {
+    ['propulsion', 'defense', 'firepower', 'energy'].forEach((key) => {
+      const node = $(`#sim-${key}`);
+      if (node) node.textContent = String(Math.round(stats[key]));
+    });
+    const rating = $('#sim-rating');
+    if (rating) {
+      rating.textContent = stats.rating;
+      rating.setAttribute('class', `sim-rating grade-${stats.rating}`);
+    }
+    const copy = $('#sim-copy');
+    if (!copy) return;
+    if (stats.overload) copy.textContent = '推演警告 · 能量超载，全速巡航会拖垮护盾回路。';
+    else if (stats.lightspeed) copy.textContent = '推演完成 · 推进越过光速阈值，能量流线稳定包裹全舰。';
+    else copy.textContent = `推演完成 · 综合 ${stats.rating} 级，当前构型在一个太阳年内可稳定巡航。`;
+  }
+
+  function setRefitMode(mode) {
+    refitMode = mode === 'sim' ? 'sim' : 'build';
+    $$('[data-refit-mode]').forEach((button) => {
+      const active = button.dataset.refitMode === refitMode;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    const sim = refitMode === 'sim';
+    document.body.classList.toggle('is-refit-sim', sim);
+    const overlay = $('#sim-overlay');
+    if (overlay) {
+      overlay.hidden = !sim;
+      overlay.setAttribute('aria-hidden', sim ? 'false' : 'true');
+    }
+    sceneCall('setSimMode', sim);
+    if (sim) {
+      clearFocusSlot();
+      clearStatFocus();
+      if (isMobile()) closeDrawer();
+      updateSimOverlay(computeStats(state));
+      setGuideRing('sim');
+      sceneCall('setDragHints', null);
+      showToast('全速推演 · 性能数据已汇聚到舰体周围。');
+    } else {
+      setGuideRing(focusedSlotId ? 'focus' : 'idle');
+    }
+  }
+
+  /* ---- celebration --------------------------------------------------- */
+  function maybeCelebrate(before) {
+    const after = computeStats(state);
+    if (before.emptyCore > 0 && after.emptyCore === 0) {
+      sceneCall('celebrate');
+      showToast('核心槽位全部就位 · 全舰能量链路点亮。');
+      return;
+    }
+    if (before.emptyDecor > 0 && after.emptyDecor === 0) {
+      sceneCall('celebrate');
+      showToast('62 个槽位全部装满 · 舰体进入战备状态。');
+    }
+  }
+
+  function setupRefitExperience() {
+    buildHoloSphere();
+    initGuideRing();
+    if (!buildHistory.length) {
+      recordBuild('初始构型', state.hullId, 'hull');
+    }
+    renderTimeline();
+    $$('[data-refit-mode]').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (launchActive) return;
+        setRefitMode(button.dataset.refitMode);
+      });
+    });
+    $('#library-focus-clear')?.addEventListener('click', clearFocusSlot);
+    $('#btn-timeline-undo')?.addEventListener('click', undoBuild);
+    $('#btn-sim-exit')?.addEventListener('click', () => setRefitMode('build'));
+    const nodes = $('#timeline-nodes');
+    if (nodes) {
+      nodes.addEventListener('pointerdown', handleTimelinePointerDown);
+      nodes.addEventListener('click', (event) => {
+        if (timelineDrag) return;
+        const node = event.target.closest('.timeline-node');
+        if (!node) return;
+        restoreHistory(Number(node.dataset.historyIndex));
+      });
+      window.addEventListener('pointermove', handleTimelinePointerMove);
+      window.addEventListener('pointerup', handleTimelinePointerUp);
+      window.addEventListener('pointercancel', handleTimelinePointerUp);
+    }
+    window.addEventListener('shipyard:pick-slot', (event) => {
+      const slotId = event.detail && event.detail.slotId;
+      if (slotId && !launchActive) focusSlot(slotId);
+    });
+    window.addEventListener('resize', () => {
+      renderTimeline();
+      if (focusedSlotId) updateBeam();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        if (refitMode === 'sim') {
+          setRefitMode('build');
+          return;
+        }
+        if (focusedSlotId && !activeModal) clearFocusSlot();
+      }
+    });
+    document.addEventListener('click', (event) => {
+      if (!document.body.dataset.focusStat) return;
+      if (event.target.closest('#holo-sphere') || event.target.closest('.stat-chip') || event.target.closest('.part-group')) return;
+      clearStatFocus();
+    });
+    window.ShipyardApp = window.ShipyardApp || {};
+    window.ShipyardApp.focusSlot = focusSlot;
+    window.ShipyardApp.setRefitMode = setRefitMode;
+    window.ShipyardApp.getHistory = () => buildHistory.map((entry) => ({ label: entry.label, slotId: entry.slotId }));
+  }
+
+  /* ------------------------------------------------------------------ */
   /* 14. Boot                                                            */
   /* ------------------------------------------------------------------ */
 
@@ -2963,6 +3546,7 @@
       showToast('当前浏览器无法写入 localStorage，方案只会在本次会话中保留。', 'warning');
     }
     exposeSceneApi();
+    setupRefitExperience();
     try {
       window.dispatchEvent(new CustomEvent('shipyard:app-ready', {
         detail: JSON.parse(JSON.stringify(currentSnapshot())),
