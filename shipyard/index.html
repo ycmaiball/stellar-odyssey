@@ -229,90 +229,78 @@
         </div>
       </section>
 
-      <aside id="telemetry" class="telemetry panel" aria-label="性能面板">
-        <div class="panel-head">
-          <div>
-            <span class="kicker">LIVE TELEMETRY / REALTIME</span>
-            <h2>性能分析</h2>
+      <aside id="telemetry" class="telemetry panel telemetry-v7" aria-label="性能分析面板">
+        <header class="tl-head">
+          <div class="tl-head__text">
+            <span class="tl-kicker">LIVE TELEMETRY / REALTIME</span>
+            <h2 class="tl-title">性能分析</h2>
           </div>
-          <span class="live-pill"><i></i>LIVE</span>
-        </div>
+          <span class="tl-live"><i class="tl-live__dot"></i>LIVE</span>
+        </header>
 
-        <div class="holo-stage">
-          <div class="holo-sphere" id="holo-sphere">
-            <div class="holo-sphere__aura" aria-hidden="true"></div>
-            <svg id="sphere-svg" class="holo-sphere__svg" viewBox="0 0 240 240" role="group" aria-label="性能全息球">
-              <defs>
-                <radialGradient id="sphereCoreGrad" cx="50%" cy="42%" r="60%">
-                  <stop offset="0" stop-color="#f4ffff" stop-opacity=".96"/>
-                  <stop offset=".45" stop-color="#6ce7ff" stop-opacity=".55"/>
-                  <stop offset="1" stop-color="#0a2230" stop-opacity=".9"/>
-                </radialGradient>
-                <filter id="sphereGlow" x="-40%" y="-40%" width="180%" height="180%">
-                  <feGaussianBlur stdDeviation="4" result="b"/>
-                  <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-                </filter>
-              </defs>
-              <circle class="holo-sphere__halo" cx="120" cy="120" r="104"/>
-              <circle class="holo-sphere__orbit" cx="120" cy="120" r="88"/>
-              <circle class="holo-sphere__orbit holo-sphere__orbit--tilt" cx="120" cy="120" r="72"/>
-              <g id="sphere-sectors" class="holo-sphere__sectors"></g>
-              <circle class="holo-sphere__core" cx="120" cy="120" r="38" fill="url(#sphereCoreGrad)" filter="url(#sphereGlow)"/>
-              <text id="sphere-rating" class="holo-sphere__rating grade-S" x="120" y="116" text-anchor="middle">S</text>
-              <text id="sphere-score" class="holo-sphere__score" x="120" y="136" text-anchor="middle">0.0</text>
-              <text id="sphere-caption" class="holo-sphere__caption" x="120" y="150" text-anchor="middle">综合评级</text>
-              <g id="sphere-labels" class="holo-sphere__labels"></g>
+        <section class="tl-gauge" aria-label="四分区性能仪表盘">
+          <div class="tl-gauge__frame" id="holo-sphere">
+            <svg id="sphere-svg" class="tl-gauge__svg" viewBox="0 0 240 240" role="group" aria-label="推进、防御、能耗、火力四分区环形仪表">
+              <circle class="tl-gauge__track" cx="120" cy="120" r="86" pathLength="100"/>
+              <g id="sphere-sectors" class="tl-gauge__sectors"></g>
+              <text id="sphere-rating" class="tl-rating grade-S" x="120" y="110" text-anchor="middle">S</text>
+              <text id="sphere-score" class="tl-score" x="120" y="150" text-anchor="middle">0.0</text>
+              <text id="sphere-caption" class="tl-caption" x="120" y="170" text-anchor="middle">综合评级</text>
+              <g id="sphere-labels" class="tl-gauge__labels"></g>
             </svg>
-            <div class="holo-sphere__readout">
-              <span id="speed-chip" class="speed-chip">巡航状态</span>
-              <span id="sphere-focus-copy" class="sphere-focus-copy">点击扇区定位相关部件</span>
-            </div>
           </div>
-        </div>
-        <p id="archetype" class="archetype">等待零件接入。</p>
-        <p id="refit-advice" class="refit-advice">最值得改：先补齐核心槽位。</p>
+          <p class="tl-gauge__focus" id="sphere-focus-copy">点击扇区定位相关部件</p>
+          <span id="speed-chip" class="sr-only">常规巡航状态</span>
+        </section>
 
-        <div class="stat-chips">
-          <div class="stat-chip" data-stat="propulsion">
-            <span class="stat-chip__label">推进 <small>PROP</small></span>
-            <b id="stat-propulsion" class="stat-value">0</b>
+        <section class="tl-hints">
+          <p id="archetype" class="tl-hints__main">等待零件接入。</p>
+          <p id="refit-advice" class="tl-hints__sub">最值得改：先补齐核心槽位。</p>
+        </section>
+
+        <section class="tl-grid" aria-label="四项性能数值">
+          <div class="stat-chip tl-card" data-stat="propulsion">
+            <span class="tl-card__label">推进<i>PROP</i></span>
+            <b id="stat-propulsion" class="tl-card__value">0</b>
           </div>
-          <div class="stat-chip" data-stat="defense">
-            <span class="stat-chip__label">防御 <small>DEF</small></span>
-            <b id="stat-defense" class="stat-value">0</b>
+          <div class="stat-chip tl-card" data-stat="defense">
+            <span class="tl-card__label">防御<i>DEF</i></span>
+            <b id="stat-defense" class="tl-card__value">0</b>
           </div>
-          <div class="stat-chip" data-stat="energy">
-            <span class="stat-chip__label">能耗 <small>NRG</small></span>
-            <b id="stat-energy" class="stat-value">0</b>
+          <div class="stat-chip tl-card" data-stat="energy">
+            <span class="tl-card__label">能耗<i>NRG</i></span>
+            <b id="stat-energy" class="tl-card__value">0</b>
           </div>
-          <div class="stat-chip" data-stat="firepower">
-            <span class="stat-chip__label">火力 <small>FIRE</small></span>
-            <b id="stat-firepower" class="stat-value">0</b>
+          <div class="stat-chip tl-card" data-stat="firepower">
+            <span class="tl-card__label">火力<i>FIRE</i></span>
+            <b id="stat-firepower" class="tl-card__value">0</b>
           </div>
-        </div>
+        </section>
         <span id="hint-propulsion" class="sr-only">上限 120 · 100 可进入光速</span>
         <span id="hint-defense" class="sr-only">船体装甲 × 0.4 + 护盾 × 0.6</span>
-        <span id="hint-energy" class="sr-only">能量上限 100</span>
         <span id="hint-firepower" class="sr-only">武器 × 0.8 + 引擎推力 × 0.2</span>
 
-        <div id="energy-warning" class="panel-warning" hidden>能量超载，建议减少武器</div>
-        <div id="empty-warning" class="panel-note">还有空槽，装上能更强</div>
+        <section class="tl-notes" aria-label="性能备注">
+          <p id="energy-warning" class="tl-note tl-note--warn" hidden>能量超载，建议减少武器</p>
+          <p id="empty-warning" class="tl-note">还有空槽，装上能更强</p>
+          <p id="hint-energy" class="tl-note">能量上限 100</p>
+          <p class="tl-note">槽位 <b id="tl-core-filled">0</b> / 8 核心 · 装饰 <b id="tl-decor-filled">0</b> / 54</p>
+          <p class="tl-note tl-note--formula">公式 PROP .35 / DEF .30 / FIRE .25 / ENERGY .10</p>
+        </section>
 
-        <div class="telemetry-actions">
-          <button id="btn-save" type="button" class="btn btn-ghost btn-wide">保存方案</button>
-          <button id="btn-export" type="button" class="btn btn-ghost btn-wide">导出 PNG</button>
-          <button id="btn-share" type="button" class="btn btn-share btn-wide" aria-haspopup="dialog">分享</button>
-        </div>
+        <section class="tl-actions" aria-label="方案操作">
+          <button id="btn-save" type="button" class="tl-btn">保存方案</button>
+          <button id="btn-export" type="button" class="tl-btn">导出 PNG</button>
+          <button id="btn-share" type="button" class="tl-btn tl-btn--accent" aria-haspopup="dialog">分享</button>
+        </section>
 
-        <button id="btn-launch" type="button" class="launch-button">
-          <span class="launch-button__eyebrow">LIGHT-SPEED TRIAL</span>
-          <span class="launch-button__main">光速启动 <i>→</i></span>
-          <span class="launch-button__meta" id="launch-button-meta">推进效率 0 / 100</span>
-        </button>
-
-        <div class="telemetry-foot">
-          <span>WEIGHTS: PROP .35 / DEF .30 / FIRE .25 / ENERGY .10</span>
-        </div>
+        <section class="tl-launch">
+          <button id="btn-launch" type="button" class="tl-launch__btn">
+            <span class="tl-launch__eyebrow">LIGHT-SPEED TRIAL</span>
+            <span class="tl-launch__main">光速启动 <i>→</i></span>
+            <span class="tl-launch__meta" id="launch-button-meta">推进效率 0 / 100</span>
+          </button>
+        </section>
       </aside>
       <svg id="refit-beam" class="refit-beam" aria-hidden="true">
         <g id="refit-beam-links"></g>

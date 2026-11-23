@@ -785,7 +785,7 @@
     const ratingNode = $('#sphere-rating');
     if (ratingNode) {
       ratingNode.textContent = stats.rating;
-      ratingNode.setAttribute('class', `holo-sphere__rating grade-${stats.rating}`);
+      ratingNode.setAttribute('class', `tl-rating grade-${stats.rating}`);
     }
     const archetypeNode = $('#archetype');
     if (archetypeNode) archetypeNode.textContent = commentaryFor(stats);
@@ -2918,10 +2918,10 @@
   /* ------------------------------------------------------------------ */
 
   const SPHERE_SECTORS = [
-    { key: 'propulsion', label: '推进', en: 'PROPULSION', max: 120, offset: 0 },
-    { key: 'defense', label: '防御', en: 'DEFENSE', max: 120, offset: 1 },
-    { key: 'firepower', label: '火力', en: 'FIREPOWER', max: 120, offset: 2 },
-    { key: 'energy', label: '能耗', en: 'ENERGY', max: 100, offset: 3, invert: true },
+    { key: 'propulsion', label: '推进', en: 'PROP', max: 120, offset: 0 },
+    { key: 'energy', label: '能耗', en: 'NRG', max: 100, offset: 1, invert: true },
+    { key: 'firepower', label: '火力', en: 'FIRE', max: 120, offset: 2 },
+    { key: 'defense', label: '防御', en: 'DEF', max: 120, offset: 3 },
   ];
   const STAT_CATEGORIES = {
     propulsion: ['engine'],
@@ -3257,15 +3257,8 @@
   }
 
   function sectorColor(key, ratio) {
-    if (key === 'energy') {
-      if (ratio > 1.02) return '#ff6a48';
-      if (ratio >= 0.86) return '#ffb466';
-      return '#6ce7ff';
-    }
-    if (ratio >= 0.92) return '#b4f8ff';
-    if (ratio >= 0.62) return '#6ce7ff';
-    if (ratio >= 0.3) return '#3fa9c9';
-    return '#2b6f80';
+    if (key === 'energy' && ratio > 1.02) return '#FFB84C';
+    return '#47E0FF';
   }
 
   function buildHoloSphere() {
@@ -3276,10 +3269,11 @@
       const circle = document.createElementNS(svgNs, 'circle');
       circle.setAttribute('cx', '120');
       circle.setAttribute('cy', '120');
-      circle.setAttribute('r', '76');
+      circle.setAttribute('r', '86');
       circle.setAttribute('pathLength', '100');
       circle.setAttribute('class', 'sphere-sector');
       circle.setAttribute('stroke-dasharray', '0 100');
+      circle.setAttribute('stroke', '#47E0FF');
       circle.setAttribute('transform', `rotate(${-90 + index * 90} 120 120)`);
       circle.dataset.stat = sector.key;
       circle.setAttribute('role', 'button');
@@ -3295,8 +3289,8 @@
       group.append(circle);
       const angle = (-90 + index * 90 + 45) * (Math.PI / 180);
       const label = document.createElementNS(svgNs, 'text');
-      label.setAttribute('x', (120 + Math.cos(angle) * 103).toFixed(1));
-      label.setAttribute('y', (120 + Math.sin(angle) * 103 + 2.4).toFixed(1));
+      label.setAttribute('x', (120 + Math.cos(angle) * 110).toFixed(1));
+      label.setAttribute('y', (120 + Math.sin(angle) * 110 + 2.6).toFixed(1));
       label.setAttribute('text-anchor', 'middle');
       label.textContent = `${sector.label} ${sector.en}`;
       $('#sphere-labels')?.append(label);
@@ -3310,11 +3304,13 @@
       const circle = document.querySelector(`.sphere-sector[data-stat="${sector.key}"]`);
       if (!circle) return;
       const ratio = sectorRatio(sector.key, stats);
-      const length = Math.max(0.6, Math.min(25, ratio * 25));
+      const length = Math.max(0.6, Math.min(23, ratio * 23));
       circle.setAttribute('stroke-dasharray', `${length.toFixed(2)} 100`);
-      circle.style.color = sectorColor(sector.key, ratio);
-      circle.setAttribute('stroke', sectorColor(sector.key, ratio));
+      const color = sectorColor(sector.key, ratio);
+      circle.style.color = color;
+      circle.setAttribute('stroke', color);
       circle.classList.toggle('is-empty', ratio < 0.02);
+      circle.classList.toggle('is-over', sector.key === 'energy' && stats.overload === true);
     });
   }
 
@@ -3347,11 +3343,19 @@
   }
 
   function syncStatChips(stats, previous) {
+    const peakKey = ['propulsion', 'defense', 'energy', 'firepower']
+      .filter((key) => (key === 'energy' ? stats.overload : true))
+      .sort((a, b) => stats[b] - stats[a])[0];
+    const coreFilled = $('#tl-core-filled');
+    if (coreFilled) coreFilled.textContent = String(8 - stats.emptyCore);
+    const decorFilled = $('#tl-decor-filled');
+    if (decorFilled) decorFilled.textContent = String(54 - stats.emptyDecor);
     $$('.stat-chip').forEach((chip) => {
       const key = chip.dataset.stat;
       if (!key) return;
       const max = key === 'energy' ? 100 : 120;
       const ratio = stats[key] / max;
+      chip.classList.toggle('is-peak', key === peakKey && stats[key] > 0);
       chip.classList.toggle('is-warn', key !== 'energy' && ratio >= 0.75);
       chip.classList.toggle('is-over', key === 'energy' && stats.overload);
       if (previous && Math.abs(stats[key] - previous[key]) >= 1) {
