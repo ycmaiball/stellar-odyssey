@@ -858,7 +858,9 @@ export class GameUI {
   }
 
   updateCredits(value, delta = null) {
-    setText(this.el.hudCredits, Math.round(Number(value) || 0).toLocaleString('en-US'));
+    const unlimited = !Number.isFinite(Number(value)) || value === '∞';
+    setText(this.el.hudCredits, unlimited ? '∞' : Math.round(Number(value) || 0).toLocaleString('en-US'));
+    this.el.hudCredits?.closest('.hud-credits')?.classList.toggle('is-admin', unlimited);
     if (Number.isFinite(delta) && delta !== 0) this.floatCredits(delta);
   }
 

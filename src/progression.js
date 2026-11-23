@@ -10,6 +10,7 @@
   'use strict';
 
   const STORAGE_PREFIX = 'stellar_odyssey:profile:v1:';
+  const DEMO_ADMIN_ID = 'acct-demo-admin';
   const CONTRACTS_PREFIX = 'stellar_odyssey:contracts:v1:';
 
   /* Every part id in the shipyard catalogue, with its credit price.
@@ -157,10 +158,11 @@
     return label;
   }
 
-  function createProgression(accountId) {
+  function createProgression(accountId, options = {}) {
     const id = accountId || 'guest';
     const key = storageKey(id);
     const profile = loadProfile(id);
+    const unlimited = Boolean(options && options.admin) || id === DEMO_ADMIN_ID;
 
     function save() {
       profile.updatedAt = new Date().toISOString();
@@ -183,12 +185,14 @@
       storageKey: key,
       prices: PRICES,
       starterParts: STARTER_PARTS.slice(),
-      get credits() { return profile.credits; },
+      get credits() { return unlimited ? Infinity : profile.credits; },
+      get isUnlimited() { return unlimited; },
       get xp() { return profile.xp; },
       get hull() { return profile.hull; },
       get stats() { return profile.stats; },
       rank() { return rankFor(profile.xp); },
       isUnlocked(partId) {
+        if (unlimited) return PRICES[partId] !== undefined;
         if (PRICES[partId] === 0) return true;
         return profile.unlocked.includes(partId);
       },
@@ -199,6 +203,7 @@
         return profile.unlocked.slice();
       },
       canAfford(partId) {
+        if (unlimited) return PRICES[partId] !== undefined;
         const price = PRICES[partId];
         return price !== undefined && profile.credits >= price;
       },
@@ -206,13 +211,18 @@
         const price = PRICES[partId];
         if (price === undefined) return { ok: false, reason: 'UNKNOWN_PART' };
         if (price === 0 || profile.unlocked.includes(partId)) return { ok: true, already: true };
+        if (unlimited) {
+          profile.unlocked.push(partId);
+          save();
+          return { ok: true, spent: 0, credits: Infinity, admin: true };
+        }
         if (profile.credits < price) return { ok: false, reason: 'INSUFFICIENT_CREDITS', missing: price - profile.credits };
         profile.credits -= price;
         profile.unlocked.push(partId);
         save();
         return { ok: true, spent: price, credits: profile.credits };
       },
-      addCredits(amount) { return earn(amount); },
+      addCredits(amount) { return unlimited ? Infinity : earn(amount); },
       addXp(amount) {
         profile.xp = Math.max(0, Math.round(profile.xp + (Number(amount) || 0)));
         save();
@@ -221,16 +231,20 @@
       recordKill() {
         profile.stats.kills = (profile.stats.kills || 0) + 1;
         profile.xp += KILL_XP;
-        profile.credits += KILL_CREDITS;
-        profile.stats.earned = (profile.stats.earned || 0) + KILL_CREDITS;
+        if (!unlimited) {
+          profile.credits += KILL_CREDITS;
+          profile.stats.earned = (profile.stats.earned || 0) + KILL_CREDITS;
+        }
         save();
         return { credits: KILL_CREDITS, xp: KILL_XP };
       },
       recordSurvey() {
         profile.stats.surveys = (profile.stats.surveys || 0) + 1;
         profile.xp += SURVEY_XP;
-        profile.credits += SURVEY_CREDITS;
-        profile.stats.earned = (profile.stats.earned || 0) + SURVEY_CREDITS;
+        if (!unlimited) {
+          profile.credits += SURVEY_CREDITS;
+          profile.stats.earned = (profile.stats.earned || 0) + SURVEY_CREDITS;
+        }
         save();
         return { credits: SURVEY_CREDITS, xp: SURVEY_XP };
       },
@@ -249,6 +263,7 @@
         return profile.hull;
       },
       repairCost(hullOverride) {
+        if (unlimited) return 0;
         const hull = hullOverride === undefined ? profile.hull : clamp(hullOverride, 0, 100);
         if (hull >= 100) return 0;
         return Math.ceil(((100 - hull) / 100) * REPAIR_FULL_RATE) + REPAIR_BASE;
@@ -258,6 +273,12 @@
         const fullCost = this.repairCost(current);
         if (current >= 100) return { ok: true, free: true, cost: 0, hull: current };
         if (mode === 'skip') return { ok: true, skipped: true, cost: 0, hull: current };
+        if (unlimited) {
+          profile.hull = mode === 'partial' ? clamp(current + 50, 0, 100) : 100;
+          profile.stats.repairs = (profile.stats.repairs || 0) + 1;
+          save();
+          return { ok: true, cost: 0, hull: profile.hull, admin: true };
+        }
         if (mode === 'partial') {
           const cost = Math.max(REPAIR_BASE, Math.round(fullCost * REPAIR_PARTIAL_RATE));
           if (profile.credits < cost) return { ok: false, reason: 'INSUFFICIENT_CREDITS', cost };
@@ -277,12 +298,17 @@
       reset() {
         const fresh = defaultProfile();
         Object.assign(profile, fresh);
-        profile.unlocked = STARTER_PARTS.slice();
+        profile.unlocked = unlimited ? Object.keys(PRICES) : STARTER_PARTS.slice();
         save();
         return profile;
       },
       snapshot() {
-        return JSON.parse(JSON.stringify(profile));
+        const snap = JSON.parse(JSON.stringify(profile));
+        if (unlimited) {
+          snap.credits = 999999999;
+          snap.unlimited = true;
+        }
+        return snap;
       },
       save,
     };

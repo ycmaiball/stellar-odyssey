@@ -20,6 +20,24 @@ const CALLSIGN_RE = /^[A-Za-z0-9_-]{3,16}$/;
 const MAX_NICKNAME = 12;
 const MIN_PASSWORD = 8;
 
+/* Demo-only administrator. The password is never stored in source: only the
+   PBKDF2-SHA256 digest of the demo passphrase lives here, using the same
+   210k iterations as a normal account. Delete this block to remove it. */
+const DEMO_ADMIN_ID = 'acct-demo-admin';
+const DEMO_ADMIN = {
+  id: DEMO_ADMIN_ID,
+  callsign: 'ADMIN-DEMO',
+  callsignKey: 'admin-demo',
+  nickname: '演示管理员',
+  salt: 'AQIDBAUGBwgJCgsMDQ4PEA==',
+  hash: '1QzSanfK3N1tsWC36DrI0DuPNWyckw5YSjkTU1Pu+vU=',
+  iterations: ITERATIONS,
+  role: 'admin',
+  createdAt: '2026-11-23T00:00:00.000Z',
+  lastLoginAt: null,
+  meta: { level: 1, ships: [], progress: {}, demo: true },
+};
+
 class AuthError extends Error {
   constructor(code, message, field = null) {
     super(message);
@@ -124,6 +142,18 @@ function findAccount(callsign) {
 
 /* ── validation ────────────────────────────────────────────────── */
 
+function seedDemoAdmin() {
+  try {
+    if (!storageAvailable('localStorage')) return;
+    const accounts = readAccounts();
+    if (accounts.some((item) => item && item.callsignKey === 'admin-demo')) return;
+    accounts.push(JSON.parse(JSON.stringify(DEMO_ADMIN)));
+    writeJSON(ACCOUNTS_KEY, accounts);
+  } catch (error) {
+    /* the demo account is optional; never block boot on it */
+  }
+}
+
 function validateCallsign(value) {
   const text = value.trim();
   if (!text) return '请填写飞船账号。';
@@ -176,6 +206,8 @@ function strengthOf(value) {
 }
 
 /* ── the controller ────────────────────────────────────────────── */
+
+seedDemoAdmin();
 
 export function createAuthSystem({ onAuthed, onSignedOut } = {}) {
   const root = document.getElementById('auth-screen');
@@ -290,6 +322,7 @@ export function createAuthSystem({ onAuthed, onSignedOut } = {}) {
       accountId: account.id,
       callsign: account.callsign,
       nickname: account.nickname,
+      role: account.role || 'captain',
       token: bytesToB64(randomBytes(24)).replace(/[+/=]/g, ''),
       issuedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + SESSION_TTL).toISOString(),
@@ -539,6 +572,8 @@ export function createAuthSystem({ onAuthed, onSignedOut } = {}) {
     state.pending = typeof afterAuth === 'function' ? afterAuth : null;
 
     const accounts = readAccounts();
+    /* the seeded demo admin must not turn a first visit into a login screen */
+    const captainAccounts = accounts.filter((item) => item && item.id !== DEMO_ADMIN_ID);
     const remembered = (() => {
       try {
         return window.localStorage.getItem(REMEMBER_KEY) || '';
@@ -547,10 +582,10 @@ export function createAuthSystem({ onAuthed, onSignedOut } = {}) {
       }
     })();
     if (remembered && el.loginCallsign) el.loginCallsign.value = remembered;
-    if (el.loginCallsign && !el.loginCallsign.value && accounts.length) {
-      el.loginCallsign.value = accounts[0].callsign;
+    if (el.loginCallsign && !el.loginCallsign.value && captainAccounts.length) {
+      el.loginCallsign.value = captainAccounts[0].callsign;
     }
-    setMode(accounts.length ? 'login' : 'register');
+    setMode(captainAccounts.length || remembered ? 'login' : 'register');
 
     if (!storageAvailable('localStorage')) {
       showError('本机存储不可用（可能是无痕模式），无法保存飞船账号。');

@@ -73,21 +73,29 @@
   const Progression = window.StellarProgression;
   const PRICES = (Progression && Progression.PRICES) || {};
 
-  function currentAccountId() {
+  function currentSession() {
     try {
       const raw = window.localStorage.getItem('stellar_odyssey:session:v1');
-      if (!raw) return 'guest';
-      const session = JSON.parse(raw);
-      return (session && session.accountId) || 'guest';
+      return raw ? JSON.parse(raw) : null;
     } catch (error) {
-      return 'guest';
+      return null;
     }
+  }
+
+  function currentAccountId() {
+    const session = currentSession();
+    return (session && session.accountId) || 'guest';
+  }
+
+  function isAdmin() {
+    const session = currentSession();
+    return Boolean(session && session.role === 'admin');
   }
 
   let progression = null;
   function profile() {
     if (!progression && Progression) {
-      progression = Progression.createProgression(currentAccountId());
+      progression = Progression.createProgression(currentAccountId(), { admin: isAdmin() });
     }
     return progression;
   }
@@ -104,6 +112,7 @@
   }
 
   function formatCredits(value) {
+    if (!Number.isFinite(Number(value))) return '∞';
     return Math.round(Number(value) || 0).toLocaleString('en-US');
   }
 
@@ -112,7 +121,10 @@
     const value = $('#yard-credits-value');
     const hull = $('#yard-hull-value');
     if (!p) return;
-    if (value) value.textContent = formatCredits(p.credits);
+    if (value) {
+      value.textContent = p.isUnlimited ? '∞' : formatCredits(p.credits);
+      value.title = p.isUnlimited ? '演示管理员 · 无限积分' : '';
+    }
     if (hull) {
       hull.textContent = `${Math.round(p.hull)}%`;
       hull.classList.toggle('is-critical', p.hull <= 35);

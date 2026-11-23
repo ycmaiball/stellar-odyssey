@@ -300,11 +300,11 @@ function setupAuth() {
   auth = createAuthSystem({
     onAuthed: (session) => {
       applyPilot(session);
-      ensureProgression(session?.accountId || 'guest');
+      ensureProgression(session?.accountId || 'guest', session?.role === 'admin');
     },
     onSignedOut: () => {
       applyPilot(null);
-      ensureProgression('guest');
+      ensureProgression('guest', false);
     },
   });
 
@@ -322,15 +322,15 @@ function setupAuth() {
 
   const session = auth.getSession();
   if (session) applyPilot(session);
-  ensureProgression(session?.accountId || 'guest');
+  ensureProgression(session?.accountId || 'guest', session?.role === 'admin');
 }
 
 /* ——— progression / dock economy ————————————————————————————— */
 
-function ensureProgression(accountId = 'guest') {
+function ensureProgression(accountId = 'guest', admin = false) {
   if (!window.StellarProgression) return null;
-  if (!progression || progression.accountId !== accountId) {
-    progression = window.StellarProgression.createProgression(accountId);
+  if (!progression || progression.accountId !== accountId || progression.isUnlimited !== admin) {
+    progression = window.StellarProgression.createProgression(accountId, { admin });
   }
   return progression;
 }
